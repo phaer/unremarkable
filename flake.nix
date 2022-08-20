@@ -19,7 +19,11 @@
         toolchain = pkgs.remarkable2-toolchain;
 
         linesAreRusty = naersk-lib.buildPackage lines-are-rusty;
-        unremarkableNotes = naersk-lib.buildPackage ./unremarkable-notes;
+        unremarkableNotes = naersk-lib.buildPackage {
+          nativeBuildInputs = with pkgs; [ pkg-config ];
+          buildInputs = with pkgs; [ openssl ];
+          src = ./unremarkable-notes;
+        };
       in
         {
 
@@ -33,7 +37,6 @@
           devShells.default = pkgs.mkShell {
             RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
             RMAPI_HOST = "https://remarkable.flawed.cloud";
-
 
             buildInputs = with pkgs; [
               cargo rustc rustfmt pre-commit rustPackages.clippy rust-analyzer pkg-config openssl
