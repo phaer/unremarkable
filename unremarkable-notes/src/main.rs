@@ -1,8 +1,12 @@
 use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::net::TcpStream;
 use clap::Parser;
 use anyhow::{Context, Result};
-use ssh2::{Session, Channel};
+use ssh2::{Session, Channel, Sftp};
+use serde::{Deserialize, Serialize};
+
+const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/root/.local/share/remarkable/xochitl/";
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -19,6 +23,35 @@ struct Cli {
    #[clap(long, value_parser)]
    password: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NotebookMeta {
+    deleted: bool,
+    last_modified: String,
+    #[serde(default)]
+    last_opened: Option<String>,
+    #[serde(default)]
+    last_opened_page: Option<u16>,
+    metadatamodified: bool,
+    modified: bool,
+    parent: String,
+    pinned: bool,
+    synced: bool,
+    #[serde(rename = "type")]
+    type_: String,
+    version: u8,
+    visible_name: String
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Notebook {
+    name: String,
+    path: PathBuf,
+    metadata: NotebookMeta
+}
+
+
 
 fn connect(
     ip: String,
@@ -55,6 +88,29 @@ fn exec(
     Ok(s)
 }
 
+fn list_notebooks(
+    sftp: Sftp
+) -> Result<Vec<Notebook>> {
+    let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH);
+    let mut result = Vec::new();
+    let files = sftp.readdir(path).context("Could not list files in storage directory")?;
+    for (path_buffer, _file_stat) in files {
+        if path_buffer.extension().map_or (false, |v| v == "metadata") {
+            let metadata_file = sftp
+                .open(&path_buffer)
+                .with_context(|| format!("Could not read metadata {:?}", path_buffer))?;
+            let metadata: NotebookMeta = serde_json::from_reader(metadata_file)
+                .with_context(|| format!("Could not parse metadata at {:?}", path_buffer))?;
+            let notebook = Notebook {
+                name: metadata.visible_name.clone(),
+                path: path_buffer.with_extension(""),
+                metadata
+            };
+            result.push(notebook);
+       }
+    }
+    Ok(result)
+}
 
 fn main() -> Result<()> {
    let cli = Cli::parse();
@@ -66,11 +122,17 @@ fn main() -> Result<()> {
         cli.password
     ).context("Failed to connect to your remarkable")?;
 
-    let mut channel = session.channel_session()
-        .context("Could not open SSH channel")?;
+    let sftp = session.sftp().context("Failed to connect via sftp")?;
+    let notebooks = list_notebooks(sftp).context("Failed to list notebooks")?;
+    for notebook in notebooks {
+        println!("{:?}", notebook)
+    }
 
-    let output = exec(&mut channel, "uname -a")?;
-    println!("{}", output);
+    //let mut channel = session.channel_session()
+    //    .context("Could not open SSH channel")?;
+
+    //let output = exec(&mut channel, "uname -a")?;
+    //println!("{}", output);
 
     Ok(())
 }
