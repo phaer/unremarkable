@@ -1,7 +1,8 @@
-use clap::Parser;
+use std::io::Read;
 use std::net::TcpStream;
-use ssh2::Session;
+use clap::Parser;
 use anyhow::{Context, Result};
+use ssh2::{Session, Channel};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -44,6 +45,16 @@ fn connect(
     Ok(session)
 }
 
+fn exec(
+    channel: &mut Channel,
+    command: &str
+) -> Result<String> {
+    let mut s = String::new();
+    channel.exec(command).context("Could not execute command")?;
+    channel.read_to_string(&mut s).context("Could not read from channel")?;
+    Ok(s)
+}
+
 
 fn main() -> Result<()> {
    let cli = Cli::parse();
@@ -54,6 +65,12 @@ fn main() -> Result<()> {
         cli.username,
         cli.password
     ).context("Failed to connect to your remarkable")?;
+
+    let mut channel = session.channel_session()
+        .context("Could not open SSH channel")?;
+
+    let output = exec(&mut channel, "uname -a")?;
+    println!("{}", output);
 
     Ok(())
 }
