@@ -1,18 +1,5 @@
 {
   "nodes": {
-    "lines-are-rusty": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1661075258,
-        "narHash": "sha256-DETqtKAU9ShaPDO5yInjLyvLKkNMwXC9keHI8ZG0xjY=",
-        "path": "/home/phaer/src/remarkable/lines-are-rusty",
-        "type": "path"
-      },
-      "original": {
-        "path": "/home/phaer/src/remarkable/lines-are-rusty",
-        "type": "path"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1661617163,
@@ -31,7 +18,6 @@
     },
     "root": {
       "inputs": {
-        "lines-are-rusty": "lines-are-rusty",
         "nixpkgs": "nixpkgs",
         "utils": "utils"
       }

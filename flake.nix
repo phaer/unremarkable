@@ -3,13 +3,9 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.05";
     utils.url = "github:numtide/flake-utils";
-    lines-are-rusty = {
-      flake = false;
-      url = "https://github.com/ax3l/lines-are-rusty";
-    };
   };
 
-  outputs = { self, nixpkgs, utils, lines-are-rusty }:
+  outputs = { self, nixpkgs, utils }:
     utils.lib.eachSystem
       [ "x86_64-linux" "armv7l-linux"]
       (system:
@@ -22,7 +18,8 @@
           unremarkableNotes = remarkablePkgs.rustPlatform.buildRustPackage {
             name = "unremarkable-notes";
             src = ./unremarkable-notes;
-            cargoSha256 = "sha256-j43E77KD+kxrUFzpOkZDyxSeOsPXDhWHxS3N89ymYfo=";
+            #cargoSha256 = pkgs.lib.fakeSha256;
+            cargoSha256 = "sha256-nCo8L4cM9RPLV+ZK5mZAkq95WPiiJaB5c278pGraIxA=";
 
             nativeBuildInputs = with remarkablePkgs; [ pkg-config ];
             buildInputs = with remarkablePkgs; [ openssl ];
