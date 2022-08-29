@@ -1,16 +1,24 @@
 use anyhow::Context;
-use actix_web::{get, error, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{web, get, error, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web::http::StatusCode;
 use crate::notebooks;
 
 
 #[get("/")]
-async fn index() -> Result<impl Responder> {
+async fn notebook_list() -> Result<impl Responder> {
     let notebooks = notebooks::list_notebooks()
         .context("Failed to list notebooks")
-        .http_internal_error("Could not get database connection")?;
+        .http_internal_error("Could not list notebooks")?;
     Ok(HttpResponse::Ok().json(notebooks))
 }
+
+#[get("/show/{id}")]
+async fn notebook_detail(id: web::Path<String>) -> Result<impl Responder> {
+    let notebook = notebooks::get_notebook_by_id(id.to_string())
+        .http_internal_error("Could not  get notebook")?;
+    Ok(HttpResponse::Ok().json(notebook))
+}
+
 
 
 pub async fn start(host: String, port: u16) -> std::io::Result<()> {
@@ -18,7 +26,8 @@ pub async fn start(host: String, port: u16) -> std::io::Result<()> {
 
     HttpServer::new(|| {
         App::new()
-            .service(index)
+            .service(notebook_list)
+            .service(notebook_detail)
     })
         .bind((host, port))?
         .run()

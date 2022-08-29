@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
@@ -42,17 +43,26 @@ pub fn list_notebooks(
 
     for entry in walker {
         let path = entry.as_ref().expect("Invalid files should have been filtered above").path();
+        let notebook = get_notebook_by_path(path)?;
+        result.push(notebook);
+    }
+    Ok(result)
+}
+
+pub fn get_notebook_by_path(path: &Path) -> Result<Notebook> {
         let file = File::open(path)
             .with_context(|| format!("Could not read metadata {:?}", path))?;
 
         let metadata: NotebookMeta = serde_json::from_reader(file)
             .with_context(|| format!("Could not parse metadata at {:?}", path))?;
-        let notebook = Notebook {
+        Ok(Notebook {
             name: metadata.visible_name.clone(),
             id: path.with_extension("").file_name().map(|n| n.to_string_lossy().into()).expect("Notebook without parseable id"),
             metadata
-        };
-        result.push(notebook);
-    }
-    Ok(result)
+        })
+}
+
+pub fn get_notebook_by_id(id: String) -> Result<Notebook> {
+    let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH).join(&id).with_extension("metadata");
+    get_notebook_by_path(path.as_path())
 }
