@@ -1,5 +1,6 @@
 pub mod notebooks;
 pub mod api;
+pub mod pdf;
 
 use anyhow::Result;
 use clap::Parser;

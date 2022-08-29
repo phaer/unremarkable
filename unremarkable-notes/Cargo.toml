@@ -11,5 +11,8 @@ clap = { version = "3.2.0", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 walkdir = "2.3"
-lines-are-rusty = { git = "https://github.com/ax3l/lines-are-rusty" }
-actix-web = "4"
+lines-are-rusty = { path = "../lines-are-rusty" } # git = "https://github.com/ax3l/lines-are-rusty" }
+pdf-canvas = "0.7"
+tempfile = "3.3"
+actix-web = "4.1"
+actix-files = "0.6"

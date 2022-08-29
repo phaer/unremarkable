@@ -3,6 +3,8 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
+use lines_are_rusty::{Page, LinesData};
+use crate::pdf;
 
 //const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/root/.local/share/remarkable/xochitl/";
 const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/phaer/src/remarkable/xochitl/";
@@ -28,10 +30,46 @@ pub struct NotebookMeta {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Notebook {
     pub name: String,
     pub id: String,
     pub metadata: NotebookMeta
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotebookContent {
+    pub page_count: u32,
+    pub pages: Vec<String>,
+}
+
+impl Notebook {
+    pub fn content(&self) -> Result<NotebookContent> {
+        let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH).join(&self.id).with_extension("content");
+        let file = File::open(path)?;
+        Ok(serde_json::from_reader(file)?)
+    }
+
+    // TODO gotta patch https://github.com/ax3l/lines-are-rusty/blob/develop/src/render/pdf.rs#L14 before
+    // returning a vector makes any sense.
+    pub fn parse_all(&self) -> Result<Vec<Page>> {
+        let content = self.content()?;
+        let mut pages = Vec::new();
+        for page_id in content.pages {
+            let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH)
+                .join(&self.id)
+                .join(&page_id)
+                .with_extension("rm");
+            let mut file = File::open(path)?;
+          pages.append(&mut LinesData::parse(&mut file).context("Failed to parse lines data")?.pages)
+        }
+        Ok(pages)
+    }
+
+    pub fn to_pdf(&self, output: &str) -> Result<()> {
+        Ok(pdf::render(output, self.parse_all()?)?)
+    }
 }
 
 pub fn list_notebooks(
