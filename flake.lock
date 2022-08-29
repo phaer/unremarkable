@@ -3,54 +3,23 @@
     "lines-are-rusty": {
       "flake": false,
       "locked": {
-        "lastModified": 1661001733,
-        "narHash": "sha256-PFwtrZ1+liKbEmTJRRskU0noDFAddJ4QaTzfkI1bepI=",
+        "lastModified": 1661075258,
+        "narHash": "sha256-DETqtKAU9ShaPDO5yInjLyvLKkNMwXC9keHI8ZG0xjY=",
         "path": "/home/phaer/src/remarkable/lines-are-rusty",
         "type": "path"
       },
       "original": {
         "path": "/home/phaer/src/remarkable/lines-are-rusty",
         "type": "path"
-      }
-    },
-    "naersk": {
-      "inputs": {
-        "nixpkgs": "nixpkgs"
-      },
-      "locked": {
-        "lastModified": 1659610603,
-        "narHash": "sha256-LYgASYSPYo7O71WfeUOaEUzYfzuXm8c8eavJcel+pfI=",
-        "owner": "nix-community",
-        "repo": "naersk",
-        "rev": "c6a45e4277fa58abd524681466d3450f896dc094",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-community",
-        "ref": "master",
-        "repo": "naersk",
-        "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 0,
-        "narHash": "sha256-et+bi9/jlSF/pHx5AYB9ZP2XDdZEQ0vnF7xlvs4503Y=",
-        "path": "/nix/store/qkr9mm7clx91m5w6bdxbl3s6vdyfhwx2-source",
-        "type": "path"
-      },
-      "original": {
-        "id": "nixpkgs",
-        "type": "indirect"
-      }
-    },
-    "nixpkgs_2": {
-      "locked": {
-        "lastModified": 1660926553,
-        "narHash": "sha256-19Ib1b7Ny+yGhnxwnH1KhhB2hvALuNuqevA6XzqkQmo=",
+        "lastModified": 1661617163,
+        "narHash": "sha256-NN9Ky47j8ohgPhA9JZyfkYIbbAo6RJkGz+7h8/exVpE=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "00e376e3f3c22d991052dfeaf154c42b09deeb29",
+        "rev": "0ba2543f8c855d7be8e90ef6c8dc89c1617e8a08",
         "type": "github"
       },
       "original": {
@@ -63,8 +32,7 @@
     "root": {
       "inputs": {
         "lines-are-rusty": "lines-are-rusty",
-        "naersk": "naersk",
-        "nixpkgs": "nixpkgs_2",
+        "nixpkgs": "nixpkgs",
         "utils": "utils"
       }
     },

@@ -1,7 +1,6 @@
 {
   description = "Utilities for the remarkable2";
   inputs = {
-    naersk.url = "github:nix-community/naersk/master";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.05";
     utils.url = "github:numtide/flake-utils";
     lines-are-rusty = {
@@ -10,38 +9,41 @@
     };
   };
 
-  outputs = { self, nixpkgs, utils, naersk, lines-are-rusty }:
-    utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
-        naersk-lib = pkgs.callPackage naersk { };
-        remarkablePkgs = pkgs.pkgsCross.remarkable2;
-        toolchain = pkgs.remarkable2-toolchain;
+  outputs = { self, nixpkgs, utils, lines-are-rusty }:
+    utils.lib.eachSystem
+      [ "x86_64-linux" "armv7l-linux"]
+      (system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+          remarkablePkgs = pkgs.pkgsCross.remarkable2;
 
-        linesAreRusty = naersk-lib.buildPackage lines-are-rusty;
-        unremarkableNotes = naersk-lib.buildPackage {
-          nativeBuildInputs = with pkgs; [ pkg-config ];
-          buildInputs = with pkgs; [ openssl ];
-          src = ./unremarkable-notes;
-        };
-      in
-        {
+          #linesAreRusty = naerskLib.buildPackage lines-are-rusty;
 
-          packages = {
-            inherit toolchain linesAreRusty unremarkableNotes;
-            remarkable-hello = remarkablePkgs.hello;
+          unremarkableNotes = remarkablePkgs.rustPlatform.buildRustPackage {
+            name = "unremarkable-notes";
+            src = ./unremarkable-notes;
+            cargoSha256 = "sha256-j43E77KD+kxrUFzpOkZDyxSeOsPXDhWHxS3N89ymYfo=";
 
+            nativeBuildInputs = with remarkablePkgs; [ pkg-config ];
+            buildInputs = with remarkablePkgs; [ openssl ];
           };
-          defaultPackage = linesAreRusty;
 
-          devShells.default = pkgs.mkShell {
-            RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
-            RMAPI_HOST = "https://remarkable.flawed.cloud";
+        in
+          {
+            packages = {
+              inherit unremarkableNotes;
+              hello = pkgs.hello;
+            };
+            #defaultPackage = linesAreRusty;
 
-            buildInputs = with pkgs; [
-              cargo rustc rustfmt pre-commit rustPackages.clippy rust-analyzer pkg-config openssl
-              rmapi
-            ];
-         };
-        });
-    }
+            devShells.default = pkgs.mkShell {
+              RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+              RMAPI_HOST = "https://remarkable.flawed.cloud";
+
+              buildInputs = with pkgs; [
+                cargo rustc rustfmt pre-commit rustPackages.clippy rust-analyzer pkg-config openssl
+                rmapi
+              ];
+            };
+          });
+}
