@@ -51,8 +51,6 @@ impl Notebook {
         Ok(serde_json::from_reader(file)?)
     }
 
-    // TODO gotta patch https://github.com/ax3l/lines-are-rusty/blob/develop/src/render/pdf.rs#L14 before
-    // returning a vector makes any sense.
     pub fn parse_all(&self) -> Result<Vec<Page>> {
         let content = self.content()?;
         let mut pages = Vec::new();
