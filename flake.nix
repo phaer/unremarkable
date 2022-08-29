@@ -39,6 +39,7 @@
 
               buildInputs = with pkgs; [
                 cargo rustc rustfmt pre-commit rustPackages.clippy rust-analyzer pkg-config openssl
+                cargo-watch
                 rmapi
               ];
             };
