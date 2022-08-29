@@ -783,6 +783,7 @@ checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
 [[package]]
 name = "lines-are-rusty"
 version = "0.2.0"
+source = "git+https://github.com/ax3l/lines-are-rusty#bc6b33f560147c88ad5970c99a29cecf906693c6"
 dependencies = [
  "anyhow",
  "byteorder",

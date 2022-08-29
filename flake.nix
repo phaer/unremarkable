@@ -19,7 +19,7 @@
             name = "unremarkable-notes";
             src = ./unremarkable-notes;
             #cargoSha256 = pkgs.lib.fakeSha256;
-            cargoSha256 = "sha256-nCo8L4cM9RPLV+ZK5mZAkq95WPiiJaB5c278pGraIxA=";
+            cargoSha256 = "sha256-To21JCGDviyLZMTE4lh3nStFbHW1dKKylmu5OhL4biE=";
 
             nativeBuildInputs = with remarkablePkgs; [ pkg-config ];
             buildInputs = with remarkablePkgs; [ openssl ];
