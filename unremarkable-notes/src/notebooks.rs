@@ -1,13 +1,23 @@
-use std::fs::File;
+use std::{fs::File, fmt::Display};
 use std::path::Path;
+use thiserror::Error;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
-use lines_are_rusty::{Page, LinesData};
+use lines_are_rusty::{Page, LinesData, render_svg};
 use crate::pdf;
 
 const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/root/.local/share/remarkable/xochitl/";
 //const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/phaer/src/remarkable/xochitl/";
+
+
+#[derive(Error, Debug)]
+pub enum NotebookError {
+    #[error("Page #{number} does not exist.")]
+    InvalidPage {
+        number: usize,
+    },
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +77,24 @@ impl Notebook {
 
     pub fn to_pdf(&self, output: &str) -> Result<()> {
         Ok(pdf::render(output, self.parse_all()?)?)
+    }
+
+   pub fn to_svg(&self, output: &mut dyn std::io::Write, index: usize) -> Result<()> {
+       let pages = self.parse_all()?;
+       let page = pages.get(index).ok_or(NotebookError::InvalidPage { number: index })?;
+       let auto_crop = false;
+       let layer_colors = Default::default();
+       let distance_threshold = 2.0;
+       let template = None;
+       let debug_dump = true;
+        Ok(render_svg(output, page, auto_crop, layer_colors, distance_threshold, template, debug_dump)?)
+    }
+
+}
+
+impl Display for Notebook {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.name, self.id)
     }
 }
 

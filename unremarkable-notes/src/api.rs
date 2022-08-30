@@ -1,3 +1,4 @@
+use std::fs::File;
 use anyhow::Context;
 use actix_web::{web, get, error, App, HttpResponse, HttpServer, Responder, Result};
 use actix_web::http::StatusCode;
@@ -24,11 +25,26 @@ async fn notebook_detail(id: web::Path<String>) -> Result<impl Responder> {
 async fn notebook_pdf(id: web::Path<String>) -> Result<impl Responder> {
     let notebook = notebooks::get_notebook_by_id(id.to_string())
         .http_internal_error("Could not get notebook")?;
-    let output_file = "/home/phaer/src/remarkable/test.pdf";
+    let output_path = "/home/phaer/src/remarkable/test.pdf";
     notebook
-        .to_pdf(output_file)
+        .to_pdf(output_path)
         .http_internal_error("Could not render notebook")?;
-    Ok(NamedFile::open_async(output_file).await?
+    Ok(NamedFile::open_async(output_path).await?
+       .disable_content_disposition())
+}
+
+#[get("/show/{id}.svg")]
+async fn notebook_svg(id: web::Path<String>) -> Result<impl Responder> {
+    let notebook = notebooks::get_notebook_by_id(id.to_string())
+        .http_internal_error("Could not get notebook")?;
+    let output_path = "/home/phaer/src/remarkable/test.svg";
+    let mut output_file = File::create(output_path)
+        .http_internal_error("Could not render notebook")?;
+    notebook
+        .to_svg(&mut output_file, 0)
+        .http_internal_error("Could not render notebook")?;
+    drop(output_file);
+    Ok(NamedFile::open_async(output_path).await?
        .disable_content_disposition())
 }
 
@@ -39,6 +55,7 @@ pub async fn start(host: String, port: u16) -> std::io::Result<()> {
         App::new()
             .service(notebook_list)
             .service(notebook_pdf)
+            .service(notebook_svg)
             .service(notebook_detail)
     })
         .bind((host, port))?
