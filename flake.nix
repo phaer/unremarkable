@@ -11,7 +11,7 @@
       (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          remarkablePkgs = pkgs.pkgsCross.remarkable2;
+          remarkablePkgs = pkgs.pkgsCross.remarkable2.pkgsStatic;
 
           #linesAreRusty = naerskLib.buildPackage lines-are-rusty;
 
