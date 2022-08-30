@@ -6,9 +6,7 @@
   };
 
   outputs = { self, nixpkgs, utils }:
-    utils.lib.eachSystem
-      [ "x86_64-linux" "armv7l-linux"]
-      (system:
+    utils.lib.eachDefaultSystem (system:
         let
           pkgs = import nixpkgs { inherit system; };
           remarkablePkgs = pkgs.pkgsCross.remarkable2.pkgsStatic;
