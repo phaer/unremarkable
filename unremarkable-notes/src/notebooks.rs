@@ -6,9 +6,11 @@ use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 use lines_are_rusty::{Page, LinesData, render_svg};
 use crate::pdf;
+use poem_openapi::Object;
 
-const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/root/.local/share/remarkable/xochitl/";
-//const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/phaer/src/remarkable/xochitl/";
+//const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/root/.local/share/remarkable/xochitl/";
+const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/phaer/src/remarkable/xochitl/";
+
 
 
 #[derive(Error, Debug)]
@@ -19,7 +21,7 @@ pub enum NotebookError {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Object)]
 #[serde(rename_all = "camelCase")]
 pub struct NotebookMeta {
     pub deleted: bool,
@@ -39,7 +41,7 @@ pub struct NotebookMeta {
     pub visible_name: String
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Object)]
 #[serde(rename_all = "camelCase")]
 pub struct Notebook {
     pub name: String,
