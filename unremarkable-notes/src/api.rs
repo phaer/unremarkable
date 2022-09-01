@@ -14,6 +14,7 @@ use poem_openapi::{
     payload::Json,
     payload::Binary,
     param::Path,
+    param::Query,
     OpenApi,
     OpenApiService,
     ApiResponse,
@@ -49,8 +50,9 @@ impl Api {
         Ok(Json(notebooks))
     }
 
+    // Get details of a
     #[oai(path = "/notebooks/:id", method = "get")]
-    async fn notebook_detail(&self, accept: Accept, id: Path<String>) -> Result<NotebookDetailResponse> {
+    async fn notebook_detail(&self, accept: Accept, id: Path<String>, page: Query<Option<usize>>) -> Result<NotebookDetailResponse> {
         let notebook = notebooks::get_notebook_by_id(id.to_string())
             .with_context(|| format!("Failed to get notebook {}", id.to_string()))?;
 
@@ -71,7 +73,7 @@ impl Api {
                     let mut output_file = File::create(output_path)
                         .with_context(|| format!("Failed to create output file {}", output_path))?;
                     notebook
-                        .to_svg(&mut output_file, 0)
+                        .to_svg(&mut output_file, page.0.unwrap_or_default())
                         .with_context(|| format!("Failed to render notebook {}", id.to_string()))?;
                     return Ok(NotebookDetailResponse::Binary(path_to_response(std::path::PathBuf::from(output_path))?));
                 }
