@@ -1,9 +1,8 @@
-use std::{fs::File, fmt::Display};
+use std::{fs, fmt::Display};
 use std::path::Path;
 use thiserror::Error;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use walkdir::WalkDir;
 use lines_are_rusty::{Page, LinesData, render_svg};
 use crate::pdf;
 use poem_openapi::Object;
@@ -21,9 +20,12 @@ pub enum NotebookError {
     },
 }
 
+
 #[derive(Debug, Serialize, Deserialize, Object)]
 #[serde(rename_all = "camelCase")]
-pub struct NotebookMeta {
+pub struct Metadata {
+    #[serde(skip_deserializing)]
+    pub id: String,
     pub deleted: bool,
     pub last_modified: String,
     #[serde(default)]
@@ -43,27 +45,75 @@ pub struct NotebookMeta {
 
 #[derive(Debug, Serialize, Deserialize, Object)]
 #[serde(rename_all = "camelCase")]
-pub struct Notebook {
-    pub name: String,
-    pub id: String,
-    pub metadata: NotebookMeta
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NotebookContent {
-    pub page_count: u32,
+pub struct Content {
+    pub cover_page_number: usize,
+    pub document_metadata: serde_json::Value,
+    pub dummy_document: bool,
+    pub extra_metadata: serde_json::Value,
+    pub file_type: String,
+    pub font_name: String,
+    pub format_version: usize,
+    #[serde(default)]
+    pub last_opened_page: Option<usize>,
+    pub line_height: i32,
+    pub margins: usize,
+    pub orientation: String,
+    pub original_page_count: i32,
+    pub page_count: usize,
     pub pages: Vec<String>,
+    pub page_tags: Vec<String>,
+    pub redirection_page_map: Vec<String>,
+    pub size_in_bytes: String,
+    pub tags: Vec<String>,
+    pub text_alignment: String,
+    pub text_scale: usize,
 }
 
-impl Notebook {
-    pub fn content(&self) -> Result<NotebookContent> {
+
+impl Metadata {
+    pub fn by_path(path: &Path) -> Result<Self> {
+        let file = fs::File::open(path)
+            .with_context(|| format!("Could not read metadata {:?}", path))?;
+
+        let mut metadata: Metadata = serde_json::from_reader(file)
+            .with_context(|| format!("Could not parse metadata at {:?}", path))?;
+        metadata.id = path
+            .with_extension("")
+            .file_name()
+            .map(|n| n.to_string_lossy().into())
+            .with_context(|| format!("Notebook without parseable id: {:?}", path))?;
+        Ok(metadata)
+    }
+
+    pub fn by_id(id: String) -> Result<Self> {
+        let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH)
+            .join(&id)
+            .with_extension("metadata");
+        Self::by_path(path.as_path())
+    }
+
+    pub fn all() -> Result<Vec<Metadata>> {
+        let mut result = Vec::new();
+        let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH);
+        let documents = fs::read_dir(path)
+            .with_context(|| format!("Could not read xochitl_store {:?}", path))?;
+        for document in documents {
+            let document = document?;
+            if !document.file_name().to_string_lossy().ends_with(".metadata") {
+                continue;
+            }
+            result.push(Self::by_path(&document.path())?)
+        }
+        Ok(result)
+    }
+
+    pub fn content(&self) -> Result<Content> {
         let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH).join(&self.id).with_extension("content");
-        let file = File::open(path)?;
+        let file = fs::File::open(path)?;
         Ok(serde_json::from_reader(file)?)
     }
 
-    pub fn parse_all(&self) -> Result<Vec<Page>> {
+    fn parse_all_pages(&self) -> Result<Vec<Page>> {
         let content = self.content()?;
         let mut pages = Vec::new();
         for page_id in content.pages {
@@ -71,64 +121,31 @@ impl Notebook {
                 .join(&self.id)
                 .join(&page_id)
                 .with_extension("rm");
-            let mut file = File::open(path)?;
-          pages.append(&mut LinesData::parse(&mut file).context("Failed to parse lines data")?.pages)
+            let mut file = fs::File::open(path)?;
+            pages.append(&mut LinesData::parse(&mut file).context("Failed to parse lines data")?.pages)
         }
         Ok(pages)
     }
 
-    pub fn to_pdf(&self, output: &str) -> Result<()> {
-        Ok(pdf::render(output, self.parse_all()?)?)
+    pub fn write_pdf(&self, output: &str) -> Result<()> {
+        Ok(pdf::render(output, self.parse_all_pages()?)?)
     }
 
-   pub fn to_svg(&self, output: &mut dyn std::io::Write, index: usize) -> Result<()> {
-       let pages = self.parse_all()?;
-       let page = pages.get(index).ok_or(NotebookError::InvalidPage { number: index })?;
-       let auto_crop = false;
-       let layer_colors = Default::default();
-       let distance_threshold = 2.0;
-       let template = None;
-       let debug_dump = true;
+    pub fn write_svg(&self, output: &mut dyn std::io::Write, index: usize) -> Result<()> {
+        let pages = self.parse_all_pages()?;
+        let page = pages.get(index).ok_or(NotebookError::InvalidPage { number: index })?;
+        let auto_crop = false;
+        let layer_colors = Default::default();
+        let distance_threshold = 2.0;
+        let template = None;
+        let debug_dump = true;
         Ok(render_svg(output, page, auto_crop, layer_colors, distance_threshold, template, debug_dump)?)
     }
 
 }
 
-impl Display for Notebook {
+impl Display for Metadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({})", self.name, self.id)
+        write!(f, "{} ({})", self.visible_name, self.id)
     }
-}
-
-pub fn list_notebooks(
-) -> Result<Vec<Notebook>> {
-    let mut result = Vec::new();
-    let walker = WalkDir::new(REMARKABLE_NOTEBOOK_STORAGE_PATH)
-        .into_iter()
-        .filter(|e| e.as_ref().map_or(false, |e| e.file_name().to_string_lossy().ends_with(".metadata")));
-
-    for entry in walker {
-        let path = entry.as_ref().expect("Invalid files should have been filtered above").path();
-        let notebook = get_notebook_by_path(path)?;
-        result.push(notebook);
-    }
-    Ok(result)
-}
-
-pub fn get_notebook_by_path(path: &Path) -> Result<Notebook> {
-        let file = File::open(path)
-            .with_context(|| format!("Could not read metadata {:?}", path))?;
-
-        let metadata: NotebookMeta = serde_json::from_reader(file)
-            .with_context(|| format!("Could not parse metadata at {:?}", path))?;
-        Ok(Notebook {
-            name: metadata.visible_name.clone(),
-            id: path.with_extension("").file_name().map(|n| n.to_string_lossy().into()).expect("Notebook without parseable id"),
-            metadata
-        })
-}
-
-pub fn get_notebook_by_id(id: String) -> Result<Notebook> {
-    let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH).join(&id).with_extension("metadata");
-    get_notebook_by_path(path.as_path())
 }

@@ -1,7 +1,8 @@
+use crate::notebooks::{Metadata, Content};
 use std::{fs::File, io::Read};
 use std::io::BufReader;
 use anyhow::Context;
-use crate::notebooks::{self, Notebook};
+use serde::{Deserialize, Serialize};
 
 use poem::{
     listener::TcpListener,
@@ -18,14 +19,22 @@ use poem_openapi::{
     OpenApi,
     OpenApiService,
     ApiResponse,
+    Object
 };
 
 struct Api;
 
+#[derive(Debug, Serialize, Deserialize, Object)]
+#[serde(rename_all = "camelCase")]
+struct DocumentDetail {
+    metadata: Metadata,
+    content: Content
+}
+
 #[derive(ApiResponse)]
 enum NotebookDetailResponse {
     #[oai(status = 200)]
-    Json(Json<Notebook>),
+    Json(Json<DocumentDetail>),
     #[oai(status = 200)]
     Binary(Binary<Vec<u8>>),
 }
@@ -44,8 +53,8 @@ fn path_to_response(path: std::path::PathBuf) -> Result<Binary<Vec<u8>>> {
 #[OpenApi(prefix_path = "/api/v1")]
 impl Api {
     #[oai(path = "/notebooks", method = "get")]
-    async fn notenbooks_list(&self) -> Result<Json<Vec<Notebook>>> {
-        let notebooks = notebooks::list_notebooks()
+    async fn notenbooks_list(&self) -> Result<Json<Vec<Metadata>>> {
+        let notebooks = Metadata::all()
         .context("Failed to list notebooks")?;
         Ok(Json(notebooks))
     }
@@ -53,8 +62,8 @@ impl Api {
     // Get details of a
     #[oai(path = "/notebooks/:id", method = "get")]
     async fn notebook_detail(&self, accept: Accept, id: Path<String>, page: Query<Option<usize>>) -> Result<NotebookDetailResponse> {
-        let notebook = notebooks::get_notebook_by_id(id.to_string())
-            .with_context(|| format!("Failed to get notebook {}", id.to_string()))?;
+        let metadata = Metadata::by_id(id.to_string())
+            .with_context(|| format!("Failed to get notebook {}", *id))?;
 
         for mime in &accept.0 {
             match mime.as_ref() {
@@ -62,9 +71,9 @@ impl Api {
                 => {
                     // FIXME tempfile
                     let output_path = "/home/phaer/src/remarkable/test.pdf";
-                    notebook
-                        .to_pdf(output_path)
-                        .with_context(|| format!("Failed to render notebook {}", id.to_string()))?;
+                    metadata
+                        .write_pdf(output_path)
+                        .with_context(|| format!("Failed to render notebook {}", *id))?;
                     return Ok(NotebookDetailResponse::Binary(path_to_response(std::path::PathBuf::from(output_path))?));
                 }
                 "image/svg+xml" => {
@@ -72,15 +81,16 @@ impl Api {
                     let output_path = "/home/phaer/src/remarkable/test.svg";
                     let mut output_file = File::create(output_path)
                         .with_context(|| format!("Failed to create output file {}", output_path))?;
-                    notebook
-                        .to_svg(&mut output_file, page.0.unwrap_or_default())
-                        .with_context(|| format!("Failed to render notebook {}", id.to_string()))?;
+                    metadata
+                        .write_svg(&mut output_file, page.0.unwrap_or_default())
+                        .with_context(|| format!("Failed to render notebook {}", *id))?;
                     return Ok(NotebookDetailResponse::Binary(path_to_response(std::path::PathBuf::from(output_path))?));
                 }
                 _ => {}
             }
         }
-        Ok(NotebookDetailResponse::Json(Json(notebook)))
+        let content = metadata.content()?;
+        Ok(NotebookDetailResponse::Json(Json(DocumentDetail { metadata, content })))
     }
 }
 
