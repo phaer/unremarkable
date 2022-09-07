@@ -1,5 +1,5 @@
 use std::{fs, fmt::Display};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -7,9 +7,12 @@ use lines_are_rusty::{Page, LinesData, render_svg};
 use crate::pdf;
 use poem_openapi::Object;
 
-//const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/root/.local/share/remarkable/xochitl/";
-const REMARKABLE_NOTEBOOK_STORAGE_PATH: &str = "/home/phaer/src/remarkable/xochitl/";
-
+lazy_static::lazy_static! {
+    static ref REMARKABLE_NOTEBOOK_STORAGE_PATH: PathBuf =
+        std::env::var_os("REMARKABLE_NOTEBOOK_STORAGE_PATH")
+        .map_or(PathBuf::from("/home/root/.local/share/remarkable/xochitl/"),
+                PathBuf::from);
+}
 
 
 #[derive(Error, Debug)]
@@ -86,7 +89,7 @@ impl Metadata {
     }
 
     pub fn by_id(id: String) -> Result<Self> {
-        let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH)
+        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH
             .join(&id)
             .with_extension("metadata");
         Self::by_path(path.as_path())
@@ -94,9 +97,8 @@ impl Metadata {
 
     pub fn all() -> Result<Vec<Metadata>> {
         let mut result = Vec::new();
-        let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH);
-        let documents = fs::read_dir(path)
-            .with_context(|| format!("Could not read xochitl_store {:?}", path))?;
+        let documents = fs::read_dir(REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path())
+            .with_context(|| format!("Could not read xochitl_store {:?}", REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path()))?;
         for document in documents {
             let document = document?;
             if !document.file_name().to_string_lossy().ends_with(".metadata") {
@@ -108,7 +110,7 @@ impl Metadata {
     }
 
     pub fn content(&self) -> Result<Content> {
-        let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH).join(&self.id).with_extension("content");
+        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(&self.id).with_extension("content");
         let file = fs::File::open(path)?;
         Ok(serde_json::from_reader(file)?)
     }
@@ -117,7 +119,7 @@ impl Metadata {
         let content = self.content()?;
         let mut pages = Vec::new();
         for page_id in content.pages {
-            let path = Path::new(REMARKABLE_NOTEBOOK_STORAGE_PATH)
+            let path = REMARKABLE_NOTEBOOK_STORAGE_PATH
                 .join(&self.id)
                 .join(&page_id)
                 .with_extension("rm");
