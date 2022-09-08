@@ -1,7 +1,7 @@
+use std::fs::File;
 use std::{fs, fmt::Display};
 use std::path::{Path, PathBuf};
-use thiserror::Error;
-use anyhow::{Context, Result};
+use snafu::prelude::*;
 use serde::{Deserialize, Serialize};
 use lines_are_rusty::{Page, LinesData, render_svg};
 
@@ -14,13 +14,29 @@ lazy_static::lazy_static! {
                 PathBuf::from);
 }
 
+type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Error, Debug)]
-pub enum NotebookError {
-    #[error("Page #{number} does not exist.")]
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("Page #{} does not exist in {}", number, id))]
     InvalidPage {
         number: usize,
+        id: String
     },
+    #[snafu(display("Unable to read file at  {}: {}", path.display(), source))]
+    ReadFile { source: std::io::Error, path: PathBuf },
+    #[snafu(display("Unable to write file at  {}: {}", path.display(), source))]
+    WriteFile { source: std::io::Error, path: PathBuf },
+    #[snafu(display("Unable to read metadata from {}: {}", path.display(), source))]
+    ReadMetadata { source: std::io::Error, path: PathBuf },
+    #[snafu(display("Unable to parse json at {}: {}", path.display(), source))]
+    ParseJson { source: serde_json::Error, path: PathBuf },
+    #[snafu(display("Unable to read xochitl store at {}: {}", path.display(), source))]
+    ReadStore { source: std::io::Error, path: PathBuf },
+    #[snafu(display("Unable to parse remarkable lines at {}: {}", path.display(), source))]
+    ParseLines { source: lines_are_rusty::Error, path: PathBuf },
+
+
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -88,15 +104,15 @@ impl Display for Metadata {
 impl Metadata {
     pub fn by_path(path: &Path) -> Result<Self> {
         let file = fs::File::open(path)
-            .with_context(|| format!("Could not read metadata {:?}", path))?;
+            .context(ReadMetadataSnafu { path: path.to_path_buf() })?;
 
         let mut metadata: Metadata = serde_json::from_reader(file)
-            .with_context(|| format!("Could not parse metadata at {:?}", path))?;
+            .context(ParseJsonSnafu {path: path.to_path_buf()})?;
         metadata.id = path
             .with_extension("")
             .file_name()
             .map(|n| n.to_string_lossy().into())
-            .with_context(|| format!("Notebook without parseable id: {:?}", path))?;
+            .expect("Notebook without parseable id.");
         Ok(metadata)
     }
 
@@ -110,9 +126,9 @@ impl Metadata {
     pub fn all() -> Result<Vec<Metadata>> {
         let mut result = Vec::new();
         let documents = fs::read_dir(REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path())
-            .with_context(|| format!("Could not read xochitl_store {:?}", REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path()))?;
+            .context(ReadStoreSnafu { path: REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path()})?;
         for document in documents {
-            let document = document?;
+            let document = document.context(ReadFileSnafu { path: "" })?; // TODO
             if !document.file_name().to_string_lossy().ends_with(".metadata") {
                 continue;
             }
@@ -123,8 +139,8 @@ impl Metadata {
 
     pub fn content(&self) -> Result<Content> {
         let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(&self.id).with_extension("content");
-        let file = fs::File::open(path)?;
-        Ok(serde_json::from_reader(file)?)
+        let file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
+        Ok(serde_json::from_reader(file).context(ParseJsonSnafu {path: &path})?)
     }
 
     fn parse_all_pages(&self) -> Result<Vec<Page>> {
@@ -135,25 +151,31 @@ impl Metadata {
                 .join(&self.id)
                 .join(&page_id)
                 .with_extension("rm");
-            let mut file = fs::File::open(path)?;
-            pages.append(&mut LinesData::parse(&mut file).context("Failed to parse lines data")?.pages)
+            let mut file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
+            pages.append(&mut LinesData::parse(&mut file).context(ParseLinesSnafu { path: &path })?.pages)
         }
         Ok(pages)
     }
 
-    pub fn write_pdf(&self, output: &str) -> Result<()> {
-        Ok(pdf::render(output, self.parse_all_pages()?)?)
+    pub fn write_pdf(&self, path: &str) -> Result<()> {
+        let parsed = self.parse_all_pages()?;
+        let rendered = pdf::render(path, parsed)
+            .context(WriteFileSnafu { path })?;
+        Ok(rendered)
     }
 
-    pub fn write_svg(&self, output: &mut dyn std::io::Write, index: usize) -> Result<()> {
+    pub fn write_svg(&self, path: &str, index: usize) -> Result<()> {
+        let mut output = File::create(path).context(WriteFileSnafu {path})?;
         let pages = self.parse_all_pages()?;
-        let page = pages.get(index).ok_or(NotebookError::InvalidPage { number: index })?;
+        let page = pages.get(index).ok_or(Error::InvalidPage { id: self.id.clone(), number: index })?;
         let auto_crop = false;
         let layer_colors = Default::default();
         let distance_threshold = 2.0;
         let template = None;
         let debug_dump = true;
-        Ok(render_svg(output, page, auto_crop, layer_colors, distance_threshold, template, debug_dump)?)
+        let rendered = render_svg(&mut output, page, auto_crop, layer_colors, distance_threshold, template, debug_dump)
+            .context(ParseLinesSnafu {path})?;
+        Ok(rendered)
     }
 }
 
@@ -167,6 +189,14 @@ mod tests {
         // TODO
         assert_eq!(metadatas.len(), 26);
         Ok(())
+    }
+
+    #[test]
+    fn it_fails_on_nonexistant_notebooks() {
+        let id = "non-existant";
+        let metadata = Metadata::by_id(id.to_string());
+        println!("{:?}", metadata);
+        assert!(metadata.is_err())
     }
 
     #[test]
