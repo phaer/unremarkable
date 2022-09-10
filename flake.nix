@@ -14,9 +14,9 @@
             name = "unremarkable-notes";
             src = builtins.filterSource
               (path: type: type != "directory" || builtins.baseNameOf path != "target")
-              (pkgs.lib.cleanSourceFilter ./.);
+              (pkgs.lib.cleanSource ./.);
             #cargoSha256 = pkgs.lib.fakeSha256;
-            cargoSha256 = "sha256-To21JCGDviyLZMTE4lh3nStFbHW1dKKylmu5OhL4biE=";
+            cargoSha256 = "sha256-id1TQeuWyHprwDOYXSrKll8nVxyUXemhjtDOt8oSCUY=";
 
             nativeBuildInputs = with remarkablePkgs; [ pkg-config ];
             buildInputs = with remarkablePkgs; [ openssl ];
