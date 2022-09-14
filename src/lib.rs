@@ -5,6 +5,7 @@ use snafu::prelude::*;
 use serde::{Deserialize, Serialize};
 use lines_are_rusty::{Page, LinesData, render_svg};
 use uuid::Uuid;
+use serde::de::IntoDeserializer;
 
 pub mod pdf;
 
@@ -16,6 +17,20 @@ lazy_static::lazy_static! {
 }
 
 type Result<T> = core::result::Result<T, Error>;
+
+// https://github.com/serde-rs/serde/issues/1425#issuecomment-462282398
+pub fn empty_string_as_none<'de, D, T>(de: D) -> core::result::Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    let opt = Option::<String>::deserialize(de)?;
+    let opt = opt.as_ref().map(String::as_str);
+    match opt {
+        None | Some("") => Ok(None),
+        Some(s) => T::deserialize(s.into_deserializer()).map(Some)
+    }
+}
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -49,7 +64,7 @@ pub enum ContentType {
     PDF
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
     #[serde(skip_deserializing)]
@@ -62,7 +77,8 @@ pub struct Metadata {
     pub last_opened_page: Option<u16>,
     pub metadatamodified: bool,
     pub modified: bool,
-    pub parent: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub parent: Option<Uuid>,
     pub pinned: bool,
     pub synced: bool,
     #[serde(rename = "type")]
@@ -71,7 +87,7 @@ pub struct Metadata {
     pub visible_name: String
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Content {
     pub cover_page_number: usize,
