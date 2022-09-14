@@ -61,10 +61,17 @@ pub enum Error {
 #[serde(tag = "type")]
 pub enum FileType {
     #[serde(rename = "CollectionType")]
-    Collection(Metadata),
+    Collection {
+        #[serde(flatten)]
+        metadata: Metadata
+    },
     #[serde(rename = "DocumentType")]
-    Document(Metadata),
+    Document {
+        #[serde(flatten)]
+        metadata: Metadata
+    },
 }
+
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -73,10 +80,6 @@ pub struct Metadata {
     pub id: Uuid,
     pub deleted: bool,
     pub last_modified: String,
-    #[serde(default)]
-    pub last_opened: Option<String>,
-    #[serde(default)]
-    pub last_opened_page: Option<u16>,
     pub metadatamodified: bool,
     pub modified: bool,
     #[serde(deserialize_with = "empty_string_as_none")]
@@ -84,27 +87,52 @@ pub struct Metadata {
     pub pinned: bool,
     pub synced: bool,
     pub version: u8,
-    pub visible_name: String
+    pub visible_name: String,
+    #[serde(default)]
+    pub last_opened: Option<String>,
+    #[serde(default)]
+    pub last_opened_page: Option<u16>,
 }
+
 
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[serde(tag = "fileType")]
 pub enum ContentType {
-    Notebook,
-    EPub,
-    PDF
+    Collection(CollectionContent),
+    Notebook(Content),
+    EPub(Content),
+    PDF(Content)
+}
+
+impl Display for ContentType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}",
+         match self {
+            // TODO add reference to metadata for visibleName
+            ContentType::Collection(_) => "collection",
+            ContentType::Notebook(_) => "notebook",
+            ContentType::EPub(_) => "epub",
+            ContentType::PDF(_) => "pdf",
+        })
+    }
 }
 
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct CollectionContent {
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Content {
-    pub cover_page_number: usize,
+    pub cover_page_number: isize,
     pub document_metadata: serde_json::Value,
     pub dummy_document: bool,
     pub extra_metadata: serde_json::Value,
-    pub file_type: ContentType,
     pub font_name: String,
     pub format_version: usize,
     #[serde(default)]
@@ -115,8 +143,9 @@ pub struct Content {
     pub original_page_count: i32,
     pub page_count: usize,
     pub pages: Vec<Uuid>,
-    pub page_tags: Vec<String>,
-    pub redirection_page_map: Vec<usize>,
+    pub page_tags: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub redirection_page_map: Vec<isize>,
     pub size_in_bytes: String,
     pub tags: Vec<String>,
     pub text_alignment: String,
@@ -131,6 +160,7 @@ impl Display for Metadata {
 
 
 impl FileType {
+
     pub fn by_path(path: &Path) -> Result<Self> {
         let file = fs::File::open(path)
             .context(ReadMetadataSnafu { path: path.to_path_buf() })?;
@@ -170,23 +200,27 @@ impl FileType {
 
     pub fn metadata_mut(&mut self) -> &mut Metadata {
         match self {
-            FileType::Collection(m) => m,
-            FileType::Document(m) => m
+            FileType::Collection{ metadata } => metadata,
+            FileType::Document{ metadata } => metadata
         }
     }
 
     pub fn metadata(&self) -> &Metadata {
         match self {
-            FileType::Collection(m) => m,
-            FileType::Document(m) => m
+            FileType::Collection{ metadata } => metadata,
+            FileType::Document{ metadata } => metadata
         }
     }
-
-    pub fn content(&self) -> Result<Content> {
+    pub fn content(&self) -> Result<ContentType> {
         let metadata = self.metadata();
-        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(metadata.id.to_string()).with_extension("content");
-        let file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
-        Ok(serde_json::from_reader(file).context(ParseJsonSnafu {path: &path})?)
+        let path = &REMARKABLE_NOTEBOOK_STORAGE_PATH.join(metadata.id.to_string()).with_extension("content");
+        let file = fs::File::open(path).context(ReadFileSnafu {path})?;
+        let json: serde_json::Value = serde_json::from_reader(file).context(ParseJsonSnafu {path})?;
+        let content_type = match json.get("fileType").and_then(|v| v.as_str()) {
+            Some("notebook") | Some("epub") | Some("pdf") => serde_json::from_value(json).context(ParseJsonSnafu {path})?,
+            None | Some(_) => ContentType::Collection(serde_json::from_value(json).context(ParseJsonSnafu {path})?),
+        };
+        Ok(content_type)
     }
 
 
@@ -243,7 +277,7 @@ mod tests {
         for file in files {
             let metadata = file.metadata();
             let content = file.content()?;
-            println!("Parsed #{}: \"{}\" as {:?}.", metadata.id, metadata.visible_name, content.file_type)
+            println!("{} #{}: \"{}\"", content, metadata.id, metadata.visible_name)
         }
 
         Ok(())
@@ -264,7 +298,9 @@ mod tests {
         let content = file.content()?;
         assert_eq!(metadata.id, Uuid::parse_str(id).expect("Could not parse test id"));
         assert_eq!(metadata.visible_name, "The Rust Programming Language");
-        assert_eq!(content.file_type, ContentType::EPub);
+        if let ContentType::EPub(_) = content {
+            println!("Content-Type: Epub")
+        };
         Ok(())
     }
 }
