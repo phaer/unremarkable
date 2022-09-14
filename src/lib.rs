@@ -1,9 +1,9 @@
-use std::fs::File;
-use std::{fs, fmt::Display};
 use std::path::{Path, PathBuf};
 use snafu::prelude::*;
 use serde::{Deserialize, Serialize};
-use lines_are_rusty::{Page, LinesData, render_svg};
+//use std::fs::File;
+use std::{fs, fmt::Display};
+//use lines_are_rusty::{Page, LinesData, render_svg};
 use uuid::Uuid;
 use serde::de::IntoDeserializer;
 
@@ -56,15 +56,17 @@ pub enum Error {
 
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
-pub enum ContentType {
-    Notebook,
-    EPub,
-    PDF
+#[serde(tag = "type")]
+pub enum FileType {
+    #[serde(rename = "CollectionType")]
+    Collection(Metadata),
+    #[serde(rename = "DocumentType")]
+    Document(Metadata),
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
     #[serde(skip_deserializing)]
@@ -81,11 +83,19 @@ pub struct Metadata {
     pub parent: Option<Uuid>,
     pub pinned: bool,
     pub synced: bool,
-    #[serde(rename = "type")]
-    pub type_: String,
     pub version: u8,
     pub visible_name: String
 }
+
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ContentType {
+    Notebook,
+    EPub,
+    PDF
+}
+
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -119,21 +129,23 @@ impl Display for Metadata {
     }
 }
 
-impl Metadata {
+
+impl FileType {
     pub fn by_path(path: &Path) -> Result<Self> {
         let file = fs::File::open(path)
             .context(ReadMetadataSnafu { path: path.to_path_buf() })?;
-
-        let mut metadata: Metadata = serde_json::from_reader(file)
+        let mut file: FileType = serde_json::from_reader(file)
             .context(ParseJsonSnafu {path: path.to_path_buf()})?;
         let id: &str = &path
             .with_extension("")
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .expect("Notebook without parseable id.");
+        let mut metadata: &mut Metadata = file.metadata_mut();
         metadata.id = Uuid::parse_str(&id).context(InvalidUuidSnafu {})?;
-        Ok(metadata)
+        Ok(file)
     }
+
 
     pub fn by_id(id: String) -> Result<Self> {
         let path = REMARKABLE_NOTEBOOK_STORAGE_PATH
@@ -142,7 +154,7 @@ impl Metadata {
         Self::by_path(path.as_path())
     }
 
-    pub fn all() -> Result<Vec<Metadata>> {
+    pub fn all() -> Result<Vec<FileType>> {
         let mut result = Vec::new();
         let documents = fs::read_dir(REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path())
             .context(ReadStoreSnafu { path: REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path()})?;
@@ -156,46 +168,68 @@ impl Metadata {
         Ok(result)
     }
 
+    pub fn metadata_mut(&mut self) -> &mut Metadata {
+        match self {
+            FileType::Collection(m) => m,
+            FileType::Document(m) => m
+        }
+    }
+
+    pub fn metadata(&self) -> &Metadata {
+        match self {
+            FileType::Collection(m) => m,
+            FileType::Document(m) => m
+        }
+    }
+
     pub fn content(&self) -> Result<Content> {
-        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(&self.id.to_string()).with_extension("content");
+        let metadata = self.metadata();
+        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(metadata.id.to_string()).with_extension("content");
         let file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
         Ok(serde_json::from_reader(file).context(ParseJsonSnafu {path: &path})?)
     }
 
-    fn parse_all_pages(&self) -> Result<Vec<Page>> {
-        let content = self.content()?;
-        let mut pages = Vec::new();
-        for page_id in content.pages {
-            let path = REMARKABLE_NOTEBOOK_STORAGE_PATH
-                .join(&self.id.to_string())
-                .join(&page_id.to_string())
-                .with_extension("rm");
-            let mut file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
-            pages.append(&mut LinesData::parse(&mut file).context(ParseLinesSnafu { path: &path })?.pages)
-        }
-        Ok(pages)
-    }
 
-    pub fn write_pdf(&self, path: &str) -> Result<()> {
-        let parsed = self.parse_all_pages()?;
-        let rendered = pdf::render(path, parsed)
-            .context(WriteFileSnafu { path })?;
-        Ok(rendered)
-    }
-
-    pub fn write_svg(&self, path: &str, index: usize) -> Result<()> {
-        let mut output = File::create(path).context(WriteFileSnafu {path})?;
-        let pages = self.parse_all_pages()?;
-        let page = pages.get(index).ok_or(Error::InvalidPage { id: self.id.clone(), number: index })?;
-        let auto_crop = false;
-        let layer_colors = Default::default();
-        let distance_threshold = 2.0;
-        let template = None;
-        let debug_dump = true;
-        let rendered = render_svg(&mut output, page, auto_crop, layer_colors, distance_threshold, template, debug_dump)
-            .context(ParseLinesSnafu {path})?;
-        Ok(rendered)
-    }
+//    pub fn content(&self) -> Result<Content> {
+//        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(&self.id.to_string()).with_extension("content");
+//        let file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
+//        Ok(serde_json::from_reader(file).context(ParseJsonSnafu {path: &path})?)
+//    }
+//
+//    fn parse_all_pages(&self) -> Result<Vec<Page>> {
+//        let content = self.content()?;
+//        let mut pages = Vec::new();
+//        for page_id in content.pages {
+//            let path = REMARKABLE_NOTEBOOK_STORAGE_PATH
+//                .join(&self.id.to_string())
+//                .join(&page_id.to_string())
+//                .with_extension("rm");
+//            let mut file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
+//            pages.append(&mut LinesData::parse(&mut file).context(ParseLinesSnafu { path: &path })?.pages)
+//        }
+//        Ok(pages)
+//    }
+//
+//    pub fn write_pdf(&self, path: &str) -> Result<()> {
+//        let parsed = self.parse_all_pages()?;
+//        let rendered = pdf::render(path, parsed)
+//            .context(WriteFileSnafu { path })?;
+//        Ok(rendered)
+//    }
+//
+//    pub fn write_svg(&self, path: &str, index: usize) -> Result<()> {
+//        let mut output = File::create(path).context(WriteFileSnafu {path})?;
+//        let pages = self.parse_all_pages()?;
+//        let page = pages.get(index).ok_or(Error::InvalidPage { id: self.id.clone(), number: index })?;
+//        let auto_crop = false;
+//        let layer_colors = Default::default();
+//        let distance_threshold = 2.0;
+//        let template = None;
+//        let debug_dump = true;
+//        let rendered = render_svg(&mut output, page, auto_crop, layer_colors, distance_threshold, template, debug_dump)
+//            .context(ParseLinesSnafu {path})?;
+//        Ok(rendered)
+//    }
 }
 
 #[cfg(test)]
@@ -203,29 +237,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_can_list_notebooks() -> Result<()> {
-        let metadatas = Metadata::all()?;
-        // TODO
-        assert_eq!(metadatas.len(), 32);
+    fn it_can_list_and_parse_all_notebooks() -> Result<()> {
+        let files = FileType::all()?;
+        assert!(files.len() > 0);
+        for file in files {
+            let metadata = file.metadata();
+            let content = file.content()?;
+            println!("Parsed #{}: \"{}\" as {:?}.", metadata.id, metadata.visible_name, content.file_type)
+        }
+
         Ok(())
     }
 
     #[test]
     fn it_fails_on_nonexistant_notebooks() {
         let id = "non-existant";
-        let metadata = Metadata::by_id(id.to_string());
-        assert!(metadata.is_err())
+        let file = FileType::by_id(id.to_string());
+        assert!(file.is_err())
     }
 
     #[test]
     fn it_can_parse_epubs() -> Result<()> {
         let id = "7063a1a0-26e6-4941-aa0e-b8786aaf28bd";
-        let metadata = Metadata::by_id(id.to_string())?;
-        let content = metadata.content()?;
+        let file = FileType::by_id(id.to_string())?;
+        let metadata = file.metadata();
+        let content = file.content()?;
         assert_eq!(metadata.id, Uuid::parse_str(id).expect("Could not parse test id"));
         assert_eq!(metadata.visible_name, "The Rust Programming Language");
         assert_eq!(content.file_type, ContentType::EPub);
-
         Ok(())
     }
 }
