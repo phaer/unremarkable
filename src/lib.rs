@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use snafu::prelude::*;
 use serde::{Deserialize, Serialize};
 use lines_are_rusty::{Page, LinesData, render_svg};
+use uuid::Uuid;
 
 pub mod pdf;
 
@@ -21,7 +22,7 @@ pub enum Error {
     #[snafu(display("Page #{} does not exist in {}", number, id))]
     InvalidPage {
         number: usize,
-        id: String
+        id: Uuid,
     },
     #[snafu(display("Unable to read file at  {}: {}", path.display(), source))]
     ReadFile { source: std::io::Error, path: PathBuf },
@@ -35,7 +36,8 @@ pub enum Error {
     ReadStore { source: std::io::Error, path: PathBuf },
     #[snafu(display("Unable to parse remarkable lines at {}: {}", path.display(), source))]
     ParseLines { source: lines_are_rusty::Error, path: PathBuf },
-
+    #[snafu(display("Invalid uuid: {}", source))]
+    InvalidUuid { source: uuid::Error, },
 
 }
 
@@ -51,7 +53,7 @@ pub enum ContentType {
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
     #[serde(skip_deserializing)]
-    pub id: String,
+    pub id: Uuid,
     pub deleted: bool,
     pub last_modified: String,
     #[serde(default)]
@@ -86,7 +88,7 @@ pub struct Content {
     pub orientation: String,
     pub original_page_count: i32,
     pub page_count: usize,
-    pub pages: Vec<String>,
+    pub pages: Vec<Uuid>,
     pub page_tags: Vec<String>,
     pub redirection_page_map: Vec<usize>,
     pub size_in_bytes: String,
@@ -108,11 +110,12 @@ impl Metadata {
 
         let mut metadata: Metadata = serde_json::from_reader(file)
             .context(ParseJsonSnafu {path: path.to_path_buf()})?;
-        metadata.id = path
+        let id: &str = &path
             .with_extension("")
             .file_name()
-            .map(|n| n.to_string_lossy().into())
+            .map(|n| n.to_string_lossy().to_string())
             .expect("Notebook without parseable id.");
+        metadata.id = Uuid::parse_str(&id).context(InvalidUuidSnafu {})?;
         Ok(metadata)
     }
 
@@ -138,7 +141,7 @@ impl Metadata {
     }
 
     pub fn content(&self) -> Result<Content> {
-        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(&self.id).with_extension("content");
+        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(&self.id.to_string()).with_extension("content");
         let file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
         Ok(serde_json::from_reader(file).context(ParseJsonSnafu {path: &path})?)
     }
@@ -148,8 +151,8 @@ impl Metadata {
         let mut pages = Vec::new();
         for page_id in content.pages {
             let path = REMARKABLE_NOTEBOOK_STORAGE_PATH
-                .join(&self.id)
-                .join(&page_id)
+                .join(&self.id.to_string())
+                .join(&page_id.to_string())
                 .with_extension("rm");
             let mut file = fs::File::open(&path).context(ReadFileSnafu {path: &path})?;
             pages.append(&mut LinesData::parse(&mut file).context(ParseLinesSnafu { path: &path })?.pages)
@@ -187,7 +190,7 @@ mod tests {
     fn it_can_list_notebooks() -> Result<()> {
         let metadatas = Metadata::all()?;
         // TODO
-        assert_eq!(metadatas.len(), 26);
+        assert_eq!(metadatas.len(), 32);
         Ok(())
     }
 
@@ -195,7 +198,6 @@ mod tests {
     fn it_fails_on_nonexistant_notebooks() {
         let id = "non-existant";
         let metadata = Metadata::by_id(id.to_string());
-        println!("{:?}", metadata);
         assert!(metadata.is_err())
     }
 
@@ -204,7 +206,7 @@ mod tests {
         let id = "7063a1a0-26e6-4941-aa0e-b8786aaf28bd";
         let metadata = Metadata::by_id(id.to_string())?;
         let content = metadata.content()?;
-        assert_eq!(metadata.id, id);
+        assert_eq!(metadata.id, Uuid::parse_str(id).expect("Could not parse test id"));
         assert_eq!(metadata.visible_name, "The Rust Programming Language");
         assert_eq!(content.file_type, ContentType::EPub);
 

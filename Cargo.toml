@@ -11,3 +11,4 @@ lines-are-rusty = { git = "https://github.com/phaer/lines-are-rusty", branch = "
 pdf-canvas = "0.7"
 tempfile = "3.3"
 lazy_static = "1.4"
+uuid = { version = "1.1", features = ["v4","serde", "fast-rng","macro-diagnostics"] }
