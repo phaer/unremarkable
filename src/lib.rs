@@ -1,76 +1,19 @@
+pub mod pdf;
+pub mod storage;
+
+use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use snafu::prelude::*;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 //use std::fs::File;
 use std::{fmt::Display, fs};
 //use lines_are_rusty::{Page, LinesData, render_svg};
-use serde::de::IntoDeserializer;
-use uuid::Uuid;
 
-pub mod pdf;
-
-pub mod storage;
-
-lazy_static::lazy_static! {
-    static ref REMARKABLE_NOTEBOOK_STORAGE_PATH: PathBuf =
-        std::env::var_os("REMARKABLE_NOTEBOOK_STORAGE_PATH")
-        .map_or(PathBuf::from("/home/root/.local/share/remarkable/xochitl/"),
-                PathBuf::from);
-}
-
-type Result<T> = core::result::Result<T, Error>;
-
-// https://github.com/serde-rs/serde/issues/1425#issuecomment-462282398
-pub fn empty_string_as_none<'de, D, T>(de: D) -> core::result::Result<Option<T>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: serde::Deserialize<'de>,
-{
-    let opt = Option::<String>::deserialize(de)?;
-    let opt = opt.as_deref();
-    match opt {
-        None | Some("") => Ok(None),
-        Some(s) => T::deserialize(s.into_deserializer()).map(Some),
-    }
-}
-
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("Page #{} does not exist in {}", number, id))]
-    InvalidPage { number: usize, id: Uuid },
-    #[snafu(display("Unable to read file at  {}: {}", path.display(), source))]
-    ReadFile {
-        source: std::io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to write file at  {}: {}", path.display(), source))]
-    WriteFile {
-        source: std::io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to read metadata from {}: {}", path.display(), source))]
-    ReadMetadata {
-        source: std::io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to parse json at {}: {}", path.display(), source))]
-    ParseJson {
-        source: serde_json::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to read xochitl store at {}: {}", path.display(), source))]
-    ReadStore {
-        source: std::io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to parse remarkable lines at {}: {}", path.display(), source))]
-    ParseLines {
-        source: lines_are_rusty::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Invalid uuid: {}", source))]
-    InvalidUuid { source: uuid::Error },
-}
+use storage::{
+    REMARKABLE_NOTEBOOK_STORAGE_PATH,
+    error::*,
+    item::Item
+};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -79,34 +22,13 @@ pub enum FileType {
     #[serde(rename = "CollectionType")]
     Collection {
         #[serde(flatten)]
-        metadata: Metadata,
+        item: Item,
     },
     #[serde(rename = "DocumentType")]
     Document {
         #[serde(flatten)]
-        metadata: Metadata,
+        item: Item,
     },
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct Metadata {
-    #[serde(skip_deserializing)]
-    pub id: Uuid,
-    pub deleted: bool,
-    pub last_modified: String,
-    pub metadatamodified: bool,
-    pub modified: bool,
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub parent: Option<Uuid>,
-    pub pinned: bool,
-    pub synced: bool,
-    pub version: u8,
-    pub visible_name: String,
-    #[serde(default)]
-    pub last_opened: Option<String>,
-    #[serde(default)]
-    pub last_opened_page: Option<u16>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -125,7 +47,7 @@ impl Display for ContentType {
             f,
             "{}",
             match self {
-                // TODO add reference to metadata for visibleName
+                // TODO add reference to item for visibleName
                 ContentType::Collection(_) => "collection",
                 ContentType::Notebook(_) => "notebook",
                 ContentType::EPub(_) => "epub",
@@ -167,15 +89,9 @@ pub struct Content {
     pub text_scale: usize,
 }
 
-impl Display for Metadata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({})", self.visible_name, self.id)
-    }
-}
-
 impl FileType {
     pub fn by_path(path: &Path) -> Result<Self> {
-        let file = fs::File::open(path).context(ReadMetadataSnafu {
+        let file = fs::File::open(path).context(ReadItemSnafu {
             path: path.to_path_buf(),
         })?;
         let mut file: FileType = serde_json::from_reader(file).context(ParseJsonSnafu {
@@ -186,8 +102,8 @@ impl FileType {
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .expect("Notebook without parseable id.");
-        let mut metadata: &mut Metadata = file.metadata_mut();
-        metadata.id = Uuid::parse_str(id).context(InvalidUuidSnafu {})?;
+        let mut item: &mut Item = file.item_mut();
+        item.id = Uuid::parse_str(id).context(InvalidUuidSnafu {})?;
         Ok(file)
     }
 
@@ -218,23 +134,23 @@ impl FileType {
         Ok(result)
     }
 
-    pub fn metadata_mut(&mut self) -> &mut Metadata {
+    pub fn item_mut(&mut self) -> &mut Item {
         match self {
-            FileType::Collection { metadata } => metadata,
-            FileType::Document { metadata } => metadata,
+            FileType::Collection { item } => item,
+            FileType::Document { item } => item,
         }
     }
 
-    pub fn metadata(&self) -> &Metadata {
+    pub fn item(&self) -> &Item {
         match self {
-            FileType::Collection { metadata } => metadata,
-            FileType::Document { metadata } => metadata,
+            FileType::Collection { item } => item,
+            FileType::Document { item } => item,
         }
     }
     pub fn content(&self) -> Result<ContentType> {
-        let metadata = self.metadata();
+        let item = self.item();
         let path = &REMARKABLE_NOTEBOOK_STORAGE_PATH
-            .join(metadata.id.to_string())
+            .join(item.id.to_string())
             .with_extension("content");
         let file = fs::File::open(path).context(ReadFileSnafu { path })?;
         let json: serde_json::Value =
@@ -301,11 +217,11 @@ mod tests {
         let files = FileType::all()?;
         assert!(files.len() > 0);
         for file in files {
-            let metadata = file.metadata();
+            let item = file.item();
             let content = file.content()?;
             println!(
                 "{} #{}: \"{}\"",
-                content, metadata.id, metadata.visible_name
+                content, item.id, item.visible_name
             )
         }
 
@@ -323,13 +239,13 @@ mod tests {
     fn it_can_parse_epubs() -> Result<()> {
         let id = "7063a1a0-26e6-4941-aa0e-b8786aaf28bd";
         let file = FileType::by_id(id.to_string())?;
-        let metadata = file.metadata();
+        let item = file.item();
         let content = file.content()?;
         assert_eq!(
-            metadata.id,
+            item.id,
             Uuid::parse_str(id).expect("Could not parse test id")
         );
-        assert_eq!(metadata.visible_name, "The Rust Programming Language");
+        assert_eq!(item.visible_name, "The Rust Programming Language");
         if let ContentType::EPub(_) = content {
             println!("Content-Type: Epub")
         };

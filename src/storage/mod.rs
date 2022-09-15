@@ -8,7 +8,8 @@
 //! - [`Item`](item::Item): An abstract entry in the data store.
 //!   Can be queried for metadata or `.try_into()`´ed into a `Collection` or `Document`.
 //! - [`Collection`](collection::Collection): A "directory" in `xochitl`.
-//! - [`Document`](document::Document): A
+//! - [`Document`](document::Document): An abstract document.
+//!
 //!
 //!
 //! ## Data Store
@@ -16,8 +17,8 @@
 //! a directory, containing JSON, EPub, PDF and [Remarkable Lines](#remarkable-lines) files.
 //!
 //! ## Files
+//! - `{notebook_uuid}.metadata`: Deserialized to `Item`, Entry metadata, such as its name and whether it is a `Collection` or a `Document`.
 //! - `{notebook_uuid}.content`:
-//! - `{notebook_uuid}.metadata`:
 //! - `{notebook_uuid}.pagedata`:
 //! - `{notebook_uuid}/{page_uuid}.rm`:
 //! - `{notebook_uuid}/{page_uuid}-metadata.json`:
