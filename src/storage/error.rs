@@ -43,6 +43,9 @@ pub enum Error {
     },
     #[snafu(display("Invalid uuid: {}", source))]
     InvalidUuid { source: uuid::Error },
+
+    #[snafu(display("Invalid type for #{}: {}", id, type_))]
+    InvalidItemType { id: uuid::Uuid, type_: String },
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

@@ -1,10 +1,20 @@
 use serde::{de::IntoDeserializer, Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+use super::{FileSystemStore, Collection, Document, error::*};
+
+#[derive(Debug)]
+pub enum ItemType {
+    Collection(Collection),
+    Document(Document)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Item {
     #[serde(skip_deserializing)]
     pub id: uuid::Uuid,
+    #[serde(rename="type")]
+    pub type_: String,
     pub deleted: bool,
     pub last_modified: String,
     pub metadatamodified: bool,
@@ -14,6 +24,7 @@ pub struct Item {
     pub pinned: bool,
     pub synced: bool,
     pub version: u8,
+
     pub visible_name: String,
     #[serde(default)]
     pub last_opened: Option<String>,
@@ -21,11 +32,22 @@ pub struct Item {
     pub last_opened_page: Option<u16>,
 }
 
-impl core::fmt::Display for Item {
+impl<'a> core::fmt::Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} ({})", self.visible_name, self.id)
     }
 }
+
+impl Item {
+    pub fn as_type(self) -> Result<ItemType> {
+        match self.type_.as_str() {
+            "CollectionType" => Ok(ItemType::Collection(Collection { item: self  })),
+            "DocumentType" => Ok(ItemType::Document(Document { item: self  })),
+            _ => InvalidItemTypeSnafu { id: self.id, type_: self.type_ }.fail()
+        }
+    }
+}
+
 
 // https://github.com/serde-rs/serde/issues/1425#issuecomment-462282398
 fn deserialize_empty_string_as_none<'de, D, T>(de: D) -> core::result::Result<Option<T>, D::Error>

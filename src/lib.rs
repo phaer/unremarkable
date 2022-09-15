@@ -12,23 +12,23 @@ use std::fmt::Display;
 
 use storage::*;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-#[serde(rename_all = "lowercase")]
-#[serde(tag = "type")]
-pub enum FileType {
-    #[serde(rename = "CollectionType")]
-    Collection {
-        #[serde(flatten)]
-        item: Item,
-    },
-    #[serde(rename = "DocumentType")]
-    Document {
-        #[serde(flatten)]
-        item: Item,
-    },
-}
+//#[derive(Debug, Serialize, Deserialize)]
+//#[serde(rename_all = "lowercase")]
+//#[serde(tag = "type")]
+//pub enum FileType {
+//    #[serde(rename = "CollectionType")]
+//    Collection {
+//        #[serde(flatten)]
+//        item: Item,
+//    },
+//    #[serde(rename = "DocumentType")]
+//    Document {
+//        #[serde(flatten)]
+//        item: Item,
+//    },
+//}
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "fileType")]
 pub enum ContentType {
@@ -54,13 +54,13 @@ impl Display for ContentType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectionContent {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Content {
     pub cover_page_number: isize,
@@ -163,7 +163,10 @@ mod tests {
             //    "{} #{}: \"{}\"",
             //    content, item.id, item.visible_name
            //)
-            println!("#{}: \"{}\"", item.id, item.visible_name)
+            match item.as_type()? {
+                ItemType::Collection(c) => println!("as collection: {:?}", c),
+                ItemType::Document(d) => println!("as document: {:?}", d),
+            }
         }
         Ok(())
     }
@@ -172,7 +175,7 @@ mod tests {
     fn it_fails_on_nonexistant_notebooks() {
         let id = "non-existant";
         let store = FileSystemStore::default();
-        let file = store.by_id(id.to_string());
+        let file = store.by_id(id);
         assert!(file.is_err())
     }
 
@@ -180,7 +183,7 @@ mod tests {
     fn it_can_parse_epubs() -> Result<()> {
         let id = "7063a1a0-26e6-4941-aa0e-b8786aaf28bd";
         let store = FileSystemStore::default();
-        let item = store.by_id(id.to_string())?;
+        let item = store.by_id(id)?;
         //let content = file.content()?;
         assert_eq!(
             item.id,

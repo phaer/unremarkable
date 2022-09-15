@@ -5,7 +5,7 @@
 //!
 //! ## Types
 //! - Custom [`Error`](error::Error) & [`Result`](error::Result) types, enumerating possible failure modes using [SNAFU](snafu::Snafu).
-//! - [`Store`](Store): an abstract handle for a `xochitl` data store on disk.
+//! - [`Store`](Store): an abstract handle to query a `xochitl` data store on disk.
 //! - [`Item`](item::Item): An abstract entry in the data store.
 //!   Can be queried for metadata or `.try_into()`´ed into a `Collection` or `Document`.
 //! - [`Collection`](collection::Collection): A "directory" in `xochitl`.
@@ -14,8 +14,7 @@
 //! ## Usage
 //!
 //! ```
-//! use unremarkable_notes::storage::FileSystemStore;
-//! let store = FileSystemStore::default();
+//! use unremarkable_notes::storage::FileSystemStore; let store = FileSystemStore::default();
 //! assert!(store.path.as_path().ends_with("xochitl/"));
 //! ```
 //!
@@ -71,19 +70,13 @@ pub struct FileSystemStore {
     pub path: PathBuf,
 }
 
-pub trait Store: Sized {
-    fn new<P>(path: P) -> Result<Self> where P: AsRef<Path>;
+pub trait Store {
     fn all(&self) -> Result<Vec<Item>>;
-    fn by_id<I>(&self, id: I) -> Result<Item> where I: AsRef<str>;
-    fn by_path<P>(&self, path: P) -> Result<Item> where P: AsRef<Path>;
+    fn by_id(&self, id: &str) -> Result<Item>;
+    fn by_path(&self, path: &Path) -> Result<Item>;
 }
 
 impl Store for FileSystemStore {
-    fn new<T>(path: T) -> Result<Self>
-        where T: AsRef<Path> {
-        Ok(Self::try_from(path.as_ref())?)
-    }
-
     fn all(self: &Self) -> Result<Vec<Item>> {
         let mut result = Vec::new();
         let documents =
@@ -104,16 +97,14 @@ impl Store for FileSystemStore {
         Ok(result)
     }
 
-    fn by_id<I>(self: &Self, id: I) -> Result<Item> where I: AsRef<str> {
-        let id = id.as_ref();
+    fn by_id(self: &Self, id: &str) -> Result<Item> {
         let path = self.path.to_path_buf()
             .join(id)
             .with_extension("metadata");
         Self::by_path(self, path.as_path())
     }
 
-    fn by_path<P>(self: &Self, path: P) -> Result<Item> where P: AsRef<Path> {
-        let path = path.as_ref();
+    fn by_path(self: &Self, path: &Path) -> Result<Item> {
         let file = std::fs::File::open(path).context(ReadItemSnafu {
             path
         })?;
