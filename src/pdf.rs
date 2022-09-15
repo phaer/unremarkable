@@ -1,8 +1,8 @@
 // temporarily in-sourced as upstream only renders the first page
-use std::io;
+use lines_are_rusty::Page;
 use pdf_canvas::graphicsstate::{self, CapStyle, JoinStyle, Matrix};
 use pdf_canvas::Pdf;
-use lines_are_rusty::Page;
+use std::io;
 
 const BASE_LINE_WIDTH: f32 = 4.;
 
@@ -10,7 +10,6 @@ pub fn render(path: &str, pages: Vec<Page>) -> io::Result<()> {
     let mut document = Pdf::create(path)?;
 
     for page in pages {
-
         document.render_page(1404.0, 1872.0, |c| {
             // Inverse Y coordinate system.
             c.concat(Matrix::scale(1., -1.))?;
@@ -38,6 +37,6 @@ pub fn render(path: &str, pages: Vec<Page>) -> io::Result<()> {
             Ok(())
         })?;
     }
-        document.finish()?;
-        Ok(())
-    }
+    document.finish()?;
+    Ok(())
+}
