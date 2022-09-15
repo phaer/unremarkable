@@ -1,19 +1,16 @@
+#![doc(test(attr(deny(warnings))))]
+#![doc(issue_tracker_base_url = "https://github.com/phaer/unremarkable/issues/")]
+
 pub mod pdf;
 pub mod storage;
 
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
-use snafu::prelude::*;
-use std::path::Path;
 //use std::fs::File;
-use std::{fmt::Display, fs};
+use std::fmt::Display;
 //use lines_are_rusty::{Page, LinesData, render_svg};
 
-use storage::{
-    REMARKABLE_NOTEBOOK_STORAGE_PATH,
-    error::*,
-    item::Item
-};
+use storage::*;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -89,82 +86,25 @@ pub struct Content {
     pub text_scale: usize,
 }
 
-impl FileType {
-    pub fn by_path(path: &Path) -> Result<Self> {
-        let file = fs::File::open(path).context(ReadItemSnafu {
-            path: path.to_path_buf(),
-        })?;
-        let mut file: FileType = serde_json::from_reader(file).context(ParseJsonSnafu {
-            path: path.to_path_buf(),
-        })?;
-        let id: &str = &path
-            .with_extension("")
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .expect("Notebook without parseable id.");
-        let mut item: &mut Item = file.item_mut();
-        item.id = Uuid::parse_str(id).context(InvalidUuidSnafu {})?;
-        Ok(file)
-    }
-
-    pub fn by_id(id: String) -> Result<Self> {
-        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH
-            .join(&id)
-            .with_extension("metadata");
-        Self::by_path(path.as_path())
-    }
-
-    pub fn all() -> Result<Vec<FileType>> {
-        let mut result = Vec::new();
-        let documents =
-            fs::read_dir(REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path()).context(ReadStoreSnafu {
-                path: REMARKABLE_NOTEBOOK_STORAGE_PATH.as_path(),
-            })?;
-        for document in documents {
-            let document = document.context(ReadFileSnafu { path: "" })?; // TODO
-            if !document
-                .file_name()
-                .to_string_lossy()
-                .ends_with(".metadata")
-            {
-                continue;
-            }
-            result.push(Self::by_path(&document.path())?)
-        }
-        Ok(result)
-    }
-
-    pub fn item_mut(&mut self) -> &mut Item {
-        match self {
-            FileType::Collection { item } => item,
-            FileType::Document { item } => item,
-        }
-    }
-
-    pub fn item(&self) -> &Item {
-        match self {
-            FileType::Collection { item } => item,
-            FileType::Document { item } => item,
-        }
-    }
-    pub fn content(&self) -> Result<ContentType> {
-        let item = self.item();
-        let path = &REMARKABLE_NOTEBOOK_STORAGE_PATH
-            .join(item.id.to_string())
-            .with_extension("content");
-        let file = fs::File::open(path).context(ReadFileSnafu { path })?;
-        let json: serde_json::Value =
-            serde_json::from_reader(file).context(ParseJsonSnafu { path })?;
-        let content_type = match json.get("fileType").and_then(|v| v.as_str()) {
-            Some("notebook") | Some("epub") | Some("pdf") => {
-                serde_json::from_value(json).context(ParseJsonSnafu { path })?
-            }
-            None | Some(_) => ContentType::Collection(
-                serde_json::from_value(json).context(ParseJsonSnafu { path })?,
-            ),
-        };
-        Ok(content_type)
-    }
+//impl FileType {
+//    pub fn content(&self) -> Result<ContentType> {
+//        let item = self.item();
+//        let path = &REMARKABLE_NOTEBOOK_STORAGE_PATH
+//            .join(item.id.to_string())
+//            .with_extension("content");
+//        let file = fs::File::open(path).context(ReadFileSnafu { path })?;
+//        let json: serde_json::Value =
+//            serde_json::from_reader(file).context(ParseJsonSnafu { path })?;
+//        let content_type = match json.get("fileType").and_then(|v| v.as_str()) {
+//            Some("notebook") | Some("epub") | Some("pdf") => {
+//                serde_json::from_value(json).context(ParseJsonSnafu { path })?
+//            }
+//            None | Some(_) => ContentType::Collection(
+//                serde_json::from_value(json).context(ParseJsonSnafu { path })?,
+//            ),
+//        };
+//        Ok(content_type)
+//    }
 
     //    pub fn content(&self) -> Result<Content> {
     //        let path = REMARKABLE_NOTEBOOK_STORAGE_PATH.join(&self.id.to_string()).with_extension("content");
@@ -206,7 +146,7 @@ impl FileType {
     //            .context(ParseLinesSnafu {path})?;
     //        Ok(rendered)
     //    }
-}
+//}
 
 #[cfg(test)]
 mod tests {
@@ -214,41 +154,42 @@ mod tests {
 
     #[test]
     fn it_can_list_and_parse_all_notebooks() -> Result<()> {
-        let files = FileType::all()?;
-        assert!(files.len() > 0);
-        for file in files {
-            let item = file.item();
-            let content = file.content()?;
-            println!(
-                "{} #{}: \"{}\"",
-                content, item.id, item.visible_name
-            )
+        let store = FileSystemStore::default();
+        let items = store.all()?;
+        assert!(items.len() > 0);
+        for item in items {
+            //let content = file.content()?;
+            //println!(
+            //    "{} #{}: \"{}\"",
+            //    content, item.id, item.visible_name
+           //)
+            println!("#{}: \"{}\"", item.id, item.visible_name)
         }
-
         Ok(())
     }
 
     #[test]
     fn it_fails_on_nonexistant_notebooks() {
         let id = "non-existant";
-        let file = FileType::by_id(id.to_string());
+        let store = FileSystemStore::default();
+        let file = store.by_id(id.to_string());
         assert!(file.is_err())
     }
 
     #[test]
     fn it_can_parse_epubs() -> Result<()> {
         let id = "7063a1a0-26e6-4941-aa0e-b8786aaf28bd";
-        let file = FileType::by_id(id.to_string())?;
-        let item = file.item();
-        let content = file.content()?;
+        let store = FileSystemStore::default();
+        let item = store.by_id(id.to_string())?;
+        //let content = file.content()?;
         assert_eq!(
             item.id,
             Uuid::parse_str(id).expect("Could not parse test id")
         );
         assert_eq!(item.visible_name, "The Rust Programming Language");
-        if let ContentType::EPub(_) = content {
-            println!("Content-Type: Epub")
-        };
+        //if let ContentType::EPub(_) = content {
+        //    println!("Content-Type: Epub")
+        //};
         Ok(())
     }
 }
