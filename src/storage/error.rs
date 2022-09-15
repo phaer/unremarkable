@@ -5,6 +5,7 @@ use snafu::Snafu;
 use std::path::PathBuf;
 
 #[derive(Snafu, Debug)]
+#[snafu(visibility(pub(crate)))]
 pub enum Error {
     #[snafu(display("Page #{} does not exist in {}", number, id))]
     InvalidPage { number: usize, id: uuid::Uuid },
@@ -18,8 +19,8 @@ pub enum Error {
         source: std::io::Error,
         path: PathBuf,
     },
-    #[snafu(display("Unable to read metadata from {}: {}", path.display(), source))]
-    ReadMetadata {
+    #[snafu(display("Unable to read item from {}: {}", path.display(), source))]
+    ReadItem {
         source: std::io::Error,
         path: PathBuf,
     },
