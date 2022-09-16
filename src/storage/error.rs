@@ -21,11 +21,6 @@ pub enum Error {
         source: std::io::Error,
         path: PathBuf,
     },
-    #[snafu(display("Unable to read item from {}: {}", path.display(), source))]
-    ReadItem {
-        source: std::io::Error,
-        path: PathBuf,
-    },
     #[snafu(display("Unable to parse json at {}: {}", path.display(), source))]
     ParseJson {
         source: serde_json::Error,
@@ -45,7 +40,7 @@ pub enum Error {
     InvalidUuid { source: uuid::Error },
 
     #[snafu(display("Invalid type for #{}: {}", id, type_))]
-    InvalidItemType { id: uuid::Uuid, type_: String },
+    InvalidItemType { id: String, type_: String },
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

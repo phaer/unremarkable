@@ -14,7 +14,8 @@
 //! ## Usage
 //!
 //! ```
-//! use unremarkable_notes::storage::FileSystemStore; let store = FileSystemStore::default();
+//! use unremarkable_notes::storage::FileSystemStore;
+//!let store = FileSystemStore::default();
 //! assert!(store.path.as_path().ends_with("xochitl/"));
 //! ```
 //!
@@ -74,6 +75,7 @@ pub trait Store {
     fn all(&self) -> Result<Vec<Item>>;
     fn by_id(&self, id: &str) -> Result<Item>;
     fn by_path(&self, path: &Path) -> Result<Item>;
+    fn load(&self, id: &str) -> Result<ItemType>;
 }
 
 impl Store for FileSystemStore {
@@ -105,12 +107,7 @@ impl Store for FileSystemStore {
     }
 
     fn by_path(self: &Self, path: &Path) -> Result<Item> {
-        let file = std::fs::File::open(path).context(ReadItemSnafu {
-            path
-        })?;
-        let mut item: Item = serde_json::from_reader(file).context(ParseJsonSnafu {
-            path: path.to_path_buf(),
-        })?;
+       let mut item: Item = self.from_json_file(path)?;
         let id: &str = &path
             .with_extension("")
             .file_name()
@@ -119,9 +116,36 @@ impl Store for FileSystemStore {
         item.id = Uuid::parse_str(id).context(InvalidUuidSnafu {})?;
         Ok(item)
     }
+
+    fn load(self: &Self, id: &str) -> Result<ItemType> {
+        let metadata: Item = self.by_id(id)?;
+        let path = &self.path.join(id).with_extension("content");
+        match metadata.type_.as_str() {
+            "CollectionType" => {
+                let content : collection::Content = self.from_json_file(path)?;
+                Ok(ItemType::Collection(Collection { metadata, content }))
+            },
+            "DocumentType" => {
+                let content : document::Content = self.from_json_file(path)?;
+                Ok(ItemType::Document(Document { metadata, content }))
+            },
+            _ => InvalidItemTypeSnafu { id, type_: metadata.type_ }.fail()
+        }
+    }
 }
 
-impl <'a>TryFrom<&Path> for FileSystemStore {
+impl FileSystemStore {
+    pub fn from_json_file<T>(self: &Self, path: &Path) -> Result<T>
+    where T: serde::de::DeserializeOwned
+    {
+        let file = std::fs::File::open(path).context(ReadFileSnafu {path})?;
+        serde_json::from_reader(file).context(ParseJsonSnafu {
+            path: path.to_path_buf(),
+        })
+    }
+}
+
+impl <'a>TryFrom<&Path> for  FileSystemStore {
     type Error = Error;
 
     fn try_from(path: &Path) -> Result<Self> {

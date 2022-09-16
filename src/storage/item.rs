@@ -1,6 +1,6 @@
 use serde::{de::IntoDeserializer, Deserialize, Serialize};
 
-use super::{FileSystemStore, Collection, Document, error::*};
+use super::{Collection, Document, error::*};
 
 #[derive(Debug)]
 pub enum ItemType {
@@ -35,16 +35,6 @@ pub struct Item {
 impl<'a> core::fmt::Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} ({})", self.visible_name, self.id)
-    }
-}
-
-impl Item {
-    pub fn as_type(self) -> Result<ItemType> {
-        match self.type_.as_str() {
-            "CollectionType" => Ok(ItemType::Collection(Collection { item: self  })),
-            "DocumentType" => Ok(ItemType::Document(Document { item: self  })),
-            _ => InvalidItemTypeSnafu { id: self.id, type_: self.type_ }.fail()
-        }
     }
 }
 

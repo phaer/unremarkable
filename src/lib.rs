@@ -163,7 +163,7 @@ mod tests {
             //    "{} #{}: \"{}\"",
             //    content, item.id, item.visible_name
            //)
-            match item.as_type()? {
+            match store.load(&item.id.to_string())? {
                 ItemType::Collection(c) => println!("as collection: {:?}", c),
                 ItemType::Document(d) => println!("as document: {:?}", d),
             }
