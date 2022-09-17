@@ -63,6 +63,7 @@ pub use {
     document::*,
 };
 
+use std::fs::{File, read_dir};
 use std::path::{PathBuf, Path};
 use uuid::Uuid;
 
@@ -76,13 +77,14 @@ pub trait Store {
     fn by_id(&self, id: &str) -> Result<Item>;
     fn by_path(&self, path: &Path) -> Result<Item>;
     fn load(&self, id: &str) -> Result<ItemType>;
+    fn get_file(&self, path: &Path) -> Result<File>;
 }
 
 impl Store for FileSystemStore {
     fn all(self: &Self) -> Result<Vec<Item>> {
         let mut result = Vec::new();
         let documents =
-            std::fs::read_dir(self.path.as_path()).context(ReadStoreSnafu {
+            read_dir(self.path.as_path()).context(ReadStoreSnafu {
                 path: self.path.as_path(),
             })?;
         for document in documents {
@@ -100,10 +102,9 @@ impl Store for FileSystemStore {
     }
 
     fn by_id(self: &Self, id: &str) -> Result<Item> {
-        let path = self.path.to_path_buf()
-            .join(id)
+        let path = &Path::new(id)
             .with_extension("metadata");
-        Self::by_path(self, path.as_path())
+        Self::by_path(self, path)
     }
 
     fn by_path(self: &Self, path: &Path) -> Result<Item> {
@@ -119,7 +120,7 @@ impl Store for FileSystemStore {
 
     fn load(self: &Self, id: &str) -> Result<ItemType> {
         let metadata: Item = self.by_id(id)?;
-        let path = &self.path.join(id).with_extension("content");
+        let path = &Path::new(id).with_extension("content");
         match metadata.type_.as_str() {
             "CollectionType" => {
                 let content : collection::Content = self.from_json_file(path)?;
@@ -132,13 +133,18 @@ impl Store for FileSystemStore {
             _ => InvalidItemTypeSnafu { id, type_: metadata.type_ }.fail()
         }
     }
+
+    fn get_file(&self, path: &Path) -> Result<File> {
+        let path = &self.path.join(path);
+        File::open(path).context(ReadFileSnafu {path})
+    }
 }
 
 impl FileSystemStore {
     pub fn from_json_file<T>(self: &Self, path: &Path) -> Result<T>
     where T: serde::de::DeserializeOwned
     {
-        let file = std::fs::File::open(path).context(ReadFileSnafu {path})?;
+        let file = self.get_file(path)?;
         serde_json::from_reader(file).context(ParseJsonSnafu {
             path: path.to_path_buf(),
         })
