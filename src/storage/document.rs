@@ -54,20 +54,8 @@ impl<'a> core::fmt::Display for Document {
     }
 }
 
-
-trait DocumentLike {
-    fn to_pdf<T>(&self, store: &dyn Store, output: &Path) -> Result<()>;
-    fn to_svg<T>(&self, store: &dyn Store, output: &Path, page: usize) -> Result<()>;
-    fn pages(&self, store: &dyn Store) -> Result<Vec<Page>>;
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Notebook {}
-
-
-// TODO maybe implement for Notebook, PDF, Epub, not Document
-impl DocumentLike for Document {
+// TODO maybe move to shared trait for Notebook, PDF, Epub.
+impl Document {
     fn to_pdf<T>(&self, store: &dyn Store, output: &Path) -> Result<()> {
         unimplemented!();
     }
@@ -86,6 +74,10 @@ impl DocumentLike for Document {
         Ok(pages)
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Notebook {}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
