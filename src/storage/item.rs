@@ -2,12 +2,6 @@ use serde::{de::IntoDeserializer, Deserialize, Serialize};
 
 use super::{Collection, Document, error::*};
 
-#[derive(Debug)]
-pub enum ItemType {
-    Collection(Collection),
-    Document(Document)
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Item {
@@ -31,6 +25,13 @@ pub struct Item {
     #[serde(default)]
     pub last_opened_page: Option<u16>,
 }
+
+#[derive(Debug)]
+pub enum ItemType {
+    Collection(Collection),
+    Document(Document)
+}
+
 
 impl<'a> core::fmt::Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
