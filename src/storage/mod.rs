@@ -50,10 +50,10 @@
 //! which uses the `.rm` extension. We use [lines-are-rusty](https://github.com/ax3l/lines-are-rusty)
 //! to parse and render them.
 
-mod error;
-mod item;
-mod collection;
-mod document;
+pub mod error;
+pub mod item;
+pub mod collection;
+pub mod document;
 
 #[doc(inline)]
 pub use {

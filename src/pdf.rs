@@ -1,4 +1,5 @@
 // temporarily in-sourced as upstream only renders the first page
+use std::path::Path;
 use lines_are_rusty::Page;
 use pdf_canvas::graphicsstate::{self, CapStyle, JoinStyle, Matrix};
 use pdf_canvas::Pdf;
@@ -6,8 +7,8 @@ use std::io;
 
 const BASE_LINE_WIDTH: f32 = 4.;
 
-pub fn render(path: &str, pages: Vec<Page>) -> io::Result<()> {
-    let mut document = Pdf::create(path)?;
+pub fn render(path: &Path, pages: Vec<Page>) -> io::Result<()> {
+    let mut document = Pdf::create(&path.to_string_lossy())?;
 
     for page in pages {
         document.render_page(1404.0, 1872.0, |c| {

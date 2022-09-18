@@ -9,8 +9,8 @@ use std::path::PathBuf;
 #[derive(Snafu, Debug)]
 #[snafu(visibility(pub(crate)))]
 pub enum Error {
-    #[snafu(display("Page #{} does not exist in {}", number, id))]
-    InvalidPage { number: usize, id: uuid::Uuid },
+    #[snafu(display("Page #{} does not exist in {}", page, id))]
+    InvalidPage { page: usize, id: uuid::Uuid },
     #[snafu(display("Unable to read file at  {}: {}", path.display(), source))]
     ReadFile {
         source: std::io::Error,

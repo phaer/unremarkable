@@ -1,7 +1,7 @@
 use super::{Store, item::Item, error::*};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use lines_are_rusty::{Page, LinesData};
+use lines_are_rusty::{Page, LinesData, render_svg};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,13 +56,28 @@ impl<'a> core::fmt::Display for Document {
 
 // TODO maybe move to shared trait for Notebook, PDF, Epub.
 impl Document {
-    fn to_pdf<T>(&self, store: &dyn Store, output: &Path) -> Result<()> {
-        unimplemented!();
+    pub fn to_pdf<T>(&self, store: &dyn Store, path: &Path) -> Result<()> {
+        let parsed = self.pages(store)?;
+        crate::pdf::render(path, parsed)
+            .context(WriteFileSnafu { path })?;
+        Ok(())
     }
-    fn to_svg<T>(&self, store: &dyn Store, output: &Path, page: usize) -> Result<()> {
-        unimplemented!();
+
+    pub fn to_svg<T>(&self, store: &dyn Store, path: &Path, page: usize) -> Result<()> {
+        let mut output = std::fs::File::create(path).context(WriteFileSnafu {path})?;
+        let pages = self.pages(store)?;
+        let page = pages.get(page).ok_or(Error::InvalidPage { id: self.metadata.id, page })?;
+        let auto_crop = false;
+        let layer_colors = Default::default();
+        let distance_threshold = 2.0;
+        let template = None;
+        let debug_dump = true;
+        let rendered = render_svg(&mut output, page, auto_crop, layer_colors, distance_threshold, template, debug_dump)
+            .context(ParseLinesSnafu {path})?;
+        Ok(rendered)
+
     }
-    fn pages(&self, store: &dyn Store) -> Result<Vec<Page>> {
+    pub fn pages(&self, store: &dyn Store) -> Result<Vec<Page>> {
         let mut pages = Vec::new();
         for page_id in &self.content.pages {
             let path = &Path::new(&self.metadata.id.to_string())
@@ -73,6 +88,28 @@ impl Document {
         }
         Ok(pages)
     }
+
+//impl FileType {
+//    pub fn content(&self) -> Result<ContentType> {
+//        let item = self.item();
+//        let path = &REMARKABLE_NOTEBOOK_STORAGE_PATH
+//            .join(item.id.to_string())
+//            .with_extension("content");
+//        let file = fs::File::open(path).context(ReadFileSnafu { path })?;
+//        let json: serde_json::Value =
+//            serde_json::from_reader(file).context(ParseJsonSnafu { path })?;
+//        let content_type = match json.get("fileType").and_then(|v| v.as_str()) {
+//            Some("notebook") | Some("epub") | Some("pdf") => {
+//                serde_json::from_value(json).context(ParseJsonSnafu { path })?
+//            }
+//            None | Some(_) => ContentType::Collection(
+//                serde_json::from_value(json).context(ParseJsonSnafu { path })?,
+//            ),
+//        };
+//        Ok(content_type)
+//    }
+//}
+
 }
 
 #[derive(Debug, Serialize, Deserialize)]

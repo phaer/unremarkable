@@ -1,6 +1,6 @@
 use serde::{de::IntoDeserializer, Deserialize, Serialize};
 
-use super::{Collection, Document, error::*};
+use super::{Collection, Document};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
