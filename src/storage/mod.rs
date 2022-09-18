@@ -81,7 +81,7 @@ pub trait Store {
 }
 
 impl Store for FileSystemStore {
-    fn all(self: &Self) -> Result<Vec<Item>> {
+    fn all(&self) -> Result<Vec<Item>> {
         let mut result = Vec::new();
         let documents =
             read_dir(self.path.as_path()).context(ReadStoreSnafu {
@@ -101,13 +101,13 @@ impl Store for FileSystemStore {
         Ok(result)
     }
 
-    fn by_id(self: &Self, id: &str) -> Result<Item> {
+    fn by_id(&self, id: &str) -> Result<Item> {
         let path = &Path::new(id)
             .with_extension("metadata");
         Self::by_path(self, path)
     }
 
-    fn by_path(self: &Self, path: &Path) -> Result<Item> {
+    fn by_path(&self, path: &Path) -> Result<Item> {
        let mut item: Item = self.from_json_file(path)?;
         let id: &str = &path
             .with_extension("")
@@ -118,17 +118,17 @@ impl Store for FileSystemStore {
         Ok(item)
     }
 
-    fn load(self: &Self, id: &str) -> Result<ItemType> {
+    fn load(&self, id: &str) -> Result<ItemType> {
         let metadata: Item = self.by_id(id)?;
         let path = &Path::new(id).with_extension("content");
         match metadata.type_.as_str() {
             "CollectionType" => {
                 let content : collection::Content = self.from_json_file(path)?;
-                Ok(ItemType::Collection(Collection { metadata, content }))
+                Ok(ItemType::Collection(Box::new(Collection { metadata, content })))
             },
             "DocumentType" => {
                 let content : document::Content = self.from_json_file(path)?;
-                Ok(ItemType::Document(Document { metadata, content }))
+                Ok(ItemType::Document(Box::new(Document { metadata, content })))
             },
             _ => InvalidItemTypeSnafu { id, type_: metadata.type_ }.fail()
         }
@@ -141,7 +141,7 @@ impl Store for FileSystemStore {
 }
 
 impl FileSystemStore {
-    pub fn from_json_file<T>(self: &Self, path: &Path) -> Result<T>
+    pub fn from_json_file<T>(&self, path: &Path) -> Result<T>
     where T: serde::de::DeserializeOwned
     {
         let file = self.get_file(path)?;
@@ -151,7 +151,7 @@ impl FileSystemStore {
     }
 }
 
-impl <'a>TryFrom<&Path> for  FileSystemStore {
+impl <'a>TryFrom<&Path> for FileSystemStore {
     type Error = Error;
 
     fn try_from(path: &Path) -> Result<Self> {

@@ -28,8 +28,8 @@ pub struct Item {
 
 #[derive(Debug)]
 pub enum ItemType {
-    Collection(Collection),
-    Document(Document)
+    Collection(Box<Collection>),
+    Document(Box<Document>)
 }
 
 
