@@ -1,4 +1,5 @@
 use super::{Store, item::Item, error::*};
+use snafu::ResultExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use lines_are_rusty::{Page, LinesData, render_svg};

@@ -1,8 +1,6 @@
 //! Custom [`Error`](Error) & [`Result`](Result) types using [SNAFU](snafu::Snafu) to bundle all storage-related
 //! errors and provide context.
 
-pub use snafu::ResultExt;
-
 use snafu::Snafu;
 use std::path::PathBuf;
 

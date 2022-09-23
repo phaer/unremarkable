@@ -62,7 +62,7 @@ pub use {
     collection::*,
     document::*,
 };
-
+use snafu::ResultExt;
 use std::fs::{File, read_dir};
 use std::path::{PathBuf, Path};
 use uuid::Uuid;
