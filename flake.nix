@@ -16,7 +16,7 @@
               (path: type: type != "directory" || builtins.baseNameOf path != "target")
               (pkgs.lib.cleanSource ./.);
             #cargoSha256 = pkgs.lib.fakeSha256;
-            cargoSha256 = "sha256-id1TQeuWyHprwDOYXSrKll8nVxyUXemhjtDOt8oSCUY=";
+            cargoSha256 = "sha256-yL5nu3BTD5rirjGs6DmswXUGTjod41gRa9MQigEn77w=";
 
             nativeBuildInputs = with remarkablePkgs; [ pkg-config ];
             buildInputs = with remarkablePkgs; [ openssl ];
