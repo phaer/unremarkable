@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use clap::{Parser, Subcommand};
-use snafu::prelude::*;
 use unremarkable_notes::{config, sync, storage};
 use unremarkable_notes::storage::{Store, ItemType};
 
@@ -81,9 +80,8 @@ fn main() {
                             ItemType::Collection(_) => panic!("Can't render a collection")
                         }
                     };
-                    match document.to_svg(&store, &PathBuf::from("test.svg"), 1) {
-                        Err(e) => panic!("Could not load document: {}", e),
-                        Ok(_) => ()
+                    if let Err(e) = document.to_svg(&store, &PathBuf::from("test.svg"), 1) {
+                        panic!("Could not load document: {}", e);
                     }
                 }
             }

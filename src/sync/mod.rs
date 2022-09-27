@@ -62,7 +62,7 @@ impl Client {
         reader.read_line(&mut auth_code).context(ReadTokenSnafu)?;
 
         println!("AUTH_CODE {:#?}", auth_code);
-        Self::authenticate_by_code(config, &auth_code.trim_end())?;
+        Self::authenticate_by_code(config, auth_code.trim_end())?;
         config.save().context(SaveTokenSnafu)?;
         Ok(())
     }
