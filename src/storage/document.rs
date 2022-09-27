@@ -57,14 +57,14 @@ impl<'a> core::fmt::Display for Document {
 
 // TODO maybe move to shared trait for Notebook, PDF, Epub.
 impl Document {
-    pub fn to_pdf<T>(&self, store: &dyn Store, path: &Path) -> Result<()> {
+    pub fn to_pdf(&self, store: &dyn Store, path: &Path) -> Result<()> {
         let parsed = self.pages(store)?;
         crate::pdf::render(path, parsed)
             .context(WriteFileSnafu { path })?;
         Ok(())
     }
 
-    pub fn to_svg<T>(&self, store: &dyn Store, path: &Path, page: usize) -> Result<()> {
+    pub fn to_svg(&self, store: &dyn Store, path: &Path, page: usize) -> Result<()> {
         let mut output = std::fs::File::create(path).context(WriteFileSnafu {path})?;
         let pages = self.pages(store)?;
         let page = pages.get(page).ok_or(Error::InvalidPage { id: self.metadata.id, page })?;
