@@ -59,7 +59,7 @@ impl<'a> core::fmt::Display for Document {
 impl Document {
     pub fn to_pdf(&self, store: &dyn Store, path: &Path) -> Result<()> {
         let parsed = self.pages(store)?;
-        crate::pdf::render(path, parsed)
+        crate::render::render(path, parsed)
             .context(WriteFileSnafu { path })?;
         Ok(())
     }

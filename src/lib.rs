@@ -4,7 +4,7 @@
 pub mod config;
 pub mod storage;
 pub mod sync;
-pub mod pdf;
+pub mod render;
 
 #[cfg(test)]
 mod tests {
