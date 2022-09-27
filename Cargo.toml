@@ -12,3 +12,6 @@ pdf-canvas = "0.7"
 tempfile = "3.3"
 lazy_static = "1.4"
 uuid = { version = "1.1", features = ["v4","serde", "fast-rng","macro-diagnostics"] }
+clap = { version =  "3.2", features = ["derive", "env"] }
+toml = "0.5"
+reqwest = { version = "0.11", features = [ "json", "blocking", "gzip" ] }
