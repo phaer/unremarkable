@@ -1,8 +1,10 @@
 #![doc(test(attr(deny(warnings))))]
 #![doc(issue_tracker_base_url = "https://github.com/phaer/unremarkable/issues/")]
 
-pub mod pdf;
+pub mod config;
 pub mod storage;
+pub mod sync;
+pub mod pdf;
 
 #[cfg(test)]
 mod tests {
