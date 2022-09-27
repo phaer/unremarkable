@@ -40,7 +40,9 @@ impl Client {
     pub fn from(mut config: Config) -> Result<Self> {
         if config.token.is_none() {
             Self::authenticate_interactively(&mut config)?
-        };
+        } else {
+            Self::refresh_token(&mut config)?
+        }
 
         let client = reqwest::blocking::Client::new();
         Ok(Self {
@@ -51,6 +53,24 @@ impl Client {
 
     pub fn info(&self) {
         println!("{:#?}", self.config);
+    }
+
+    fn refresh_token(config: &mut Config) -> Result<()> {
+        let client = reqwest::blocking::Client::new();
+        let res = client
+            .post(format!("{}/token/json/2/user/new", config.auth_host))
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", config.token.as_deref().expect("API Token not found")))
+            .send()
+            .context(AuthSnafu {})?;
+        let res = res.error_for_status().context(AuthSnafu {})?;
+        let token = Some(res.text().context(AuthSnafu {})?);
+        if config.token != token {
+            config.token = token;
+            config.save().context(SaveTokenSnafu)?;
+        }
+        println!("new token: {:#?}", config.token);
+        Ok(())
     }
 
 
@@ -76,15 +96,12 @@ impl Client {
         map.insert("deviceID", &id);
 
         let req = client
-            .post(format!("{}/token/json/2/device/new", config.host))
+            .post(format!("{}/token/json/2/device/new", config.auth_host))
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .json(&map);
-        let res = req.send()
-            .context(AuthSnafu {})?;
-        let res = res.error_for_status()
-            .context(AuthSnafu {})?;
-        let token = res.text()
-            .context(AuthSnafu {})?;
+        let res = req.send().context(AuthSnafu {})?;
+        let res = res.error_for_status().context(AuthSnafu {})?;
+        let token = res.text() .context(AuthSnafu {})?;
         config.token = Some(token);
         Ok(())
     }

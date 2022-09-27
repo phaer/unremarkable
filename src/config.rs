@@ -31,7 +31,8 @@ pub type Token = String;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub host: Host,
+    pub auth_host: Host,
+    pub storage_host: Host,
     pub description: String,
     pub id: uuid::Uuid,
     pub token: Option<Token>,
