@@ -27,6 +27,8 @@ enum Commands {
 enum SyncCommands {
     /// Show information about the configured sync server
     Info {},
+    // List all documents
+    List {},
 }
 
 #[derive(Subcommand)]
@@ -55,6 +57,11 @@ fn main() {
         Commands::Sync { command } => {
             let client = sync::Client::from(config).unwrap();
             match command {
+                SyncCommands::List {  } => {
+                    if let Err(e) = client.all() {
+                        panic!("Could not list remote files: {}", e);
+                    }
+                },
                 SyncCommands::Info {  } => {
                     client.info();
                 }

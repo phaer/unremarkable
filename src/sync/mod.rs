@@ -7,6 +7,9 @@ use std::collections::HashMap;
 use snafu::{Snafu, ResultExt};
 use reqwest;
 
+use crate::utils::deserialize_empty_string_as_none;
+use serde::{Deserialize, Serialize};
+
 use crate::config::Config;
 
 #[derive(Snafu, Debug)]
@@ -14,6 +17,10 @@ use crate::config::Config;
 pub enum Error {
     #[snafu(display("Unable to authenticate with API: {}", source))]
     Auth {
+        source: reqwest::Error,
+    },
+    #[snafu(display("API Error: {}", source))]
+    Api {
         source: reqwest::Error,
     },
     #[snafu(display("Could not read API token: {}", source))]
@@ -29,6 +36,32 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct RemoteItem {
+    #[serde(rename="ID")]
+    pub id: uuid::Uuid,
+    pub version: u8,
+    pub message: String,
+    pub success: bool,
+    #[serde(rename="BlobURLGet")]
+    pub blob_url_get: String,
+    #[serde(rename="BlobURLGetExpires")]
+    pub blob_url_get_expires: String,
+    #[serde(rename="BlobURLPut")]
+    pub blob_url_put: Option<String>,
+    #[serde(rename="BlobURLPutExpires")]
+    pub blob_url_put_expires: Option<String>,
+    pub modified_client: String,
+    #[serde(rename="Type")]
+    pub type_: String,
+    pub vissible_name: String,  // yes, there's a typo in this api key :/
+    pub current_page: i32,
+    pub bookmarked: bool,
+    #[serde(deserialize_with = "deserialize_empty_string_as_none")]
+    pub parent: Option<String>, // this can be a uuid OR the string "trash" (as well as an empty string)
+}
+
 
 #[derive(Debug)]
 pub struct Client {
@@ -40,9 +73,9 @@ impl Client {
     pub fn from(mut config: Config) -> Result<Self> {
         if config.token.is_none() {
             Self::authenticate_interactively(&mut config)?
-        } else {
-            Self::refresh_token(&mut config)?
-        }
+        }// else {
+        //    Self::refresh_token(&mut config)?
+        //}
 
         let client = reqwest::blocking::Client::new();
         Ok(Self {
@@ -53,6 +86,17 @@ impl Client {
 
     pub fn info(&self) {
         println!("{:#?}", self.config);
+    }
+
+    pub fn all(&self) -> Result<()> {
+        let res = self.client.get(format!("{}/document-storage/json/2/docs", self.config.storage_host))
+                             .header(reqwest::header::AUTHORIZATION,
+                                     format!("Bearer {}", self.config.token.as_deref().expect("API Token not found")))
+                             .send()
+                             .context(ApiSnafu {})?;
+        let json = res.json::<Vec<RemoteItem>>().context(ApiSnafu {})?;
+        println!("{:#?}", json);
+        Ok(())
     }
 
     fn refresh_token(config: &mut Config) -> Result<()> {
@@ -72,7 +116,6 @@ impl Client {
         println!("new token: {:#?}", config.token);
         Ok(())
     }
-
 
     fn authenticate_interactively(config: &mut Config) -> Result<()> {
         let reader = stdin();

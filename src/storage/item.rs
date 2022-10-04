@@ -1,5 +1,6 @@
-use serde::{de::IntoDeserializer, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
+use crate::utils::deserialize_empty_string_as_none;
 use super::{Collection, Document};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,20 +37,5 @@ pub enum ItemType {
 impl<'a> core::fmt::Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} ({})", self.visible_name, self.id)
-    }
-}
-
-
-// https://github.com/serde-rs/serde/issues/1425#issuecomment-462282398
-fn deserialize_empty_string_as_none<'de, D, T>(de: D) -> core::result::Result<Option<T>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: serde::Deserialize<'de>,
-{
-    let opt = Option::<String>::deserialize(de)?;
-    let opt = opt.as_deref();
-    match opt {
-        None | Some("") => Ok(None),
-        Some(s) => T::deserialize(s.into_deserializer()).map(Some),
     }
 }
