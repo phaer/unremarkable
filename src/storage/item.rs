@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::utils::deserialize_empty_string_as_none;
+use crate::utils::deserialize_parent;
 use super::{Collection, Document};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,7 +14,7 @@ pub struct Item {
     pub last_modified: String,
     pub metadatamodified: bool,
     pub modified: bool,
-    #[serde(deserialize_with = "deserialize_empty_string_as_none")]
+    #[serde(deserialize_with = "deserialize_parent")]
     pub parent: Option<uuid::Uuid>,
     pub pinned: bool,
     pub synced: bool,
